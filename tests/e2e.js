@@ -57,17 +57,27 @@ fs.mkdirSync(output, { recursive: true });
                             counter.hidden = false;
                             root.classList.add('pcw-cart--one');
                             const anchorHidden = getComputedStyle(add).visibility === 'hidden';
-                            const one = counter.getBoundingClientRect();
+                            const counterState = () => ({
+                                rect: counter.getBoundingClientRect(),
+                                downX: root.querySelector('.pcw-cart__down').getBoundingClientRect().x,
+                                upX: root.querySelector('.pcw-cart__up').getBoundingClientRect().x,
+                                removeVisible: getComputedStyle(root.querySelector('.pcw-cart__remove')).display !== 'none',
+                                minusVisible: getComputedStyle(root.querySelector('.pcw-cart__minus')).display !== 'none',
+                            });
+                            const one = counterState();
                             root.classList.remove('pcw-cart--one');
-                            const multiple = counter.getBoundingClientRect();
+                            const multiple = counterState();
                             add.hidden = false;
                             counter.hidden = true;
-                            return { width: before.width, height: before.height, iconX: iconRect.x, labelX: labelRect.x, one: { width: one.width, height: one.height }, multiple: { width: multiple.width, height: multiple.height }, anchorHidden };
+                            return { width: before.width, height: before.height, iconX: iconRect.x, labelX: labelRect.x, one: { width: one.rect.width, height: one.rect.height, downX: one.downX, upX: one.upX, removeVisible: one.removeVisible, minusVisible: one.minusVisible }, multiple: { width: multiple.rect.width, height: multiple.rect.height, downX: multiple.downX, upX: multiple.upX, removeVisible: multiple.removeVisible, minusVisible: multiple.minusVisible }, anchorHidden };
                         }, { direction, text, position });
                         assert(result.width >= 129, `minimum width applies: ${JSON.stringify(result)}`);
                         assert(result.anchorHidden, 'size anchor is visually and accessibly hidden');
                         assert(position === 'right' ? result.iconX > result.labelX : result.iconX < result.labelX, `physical icon position ${position} in ${direction}`);
+                        assert(result.one.removeVisible && !result.one.minusVisible, 'one shows remove');
+                        assert(!result.multiple.removeVisible && result.multiple.minusVisible, 'multiple shows minus');
                         for (const state of [result.one, result.multiple]) {
+                            assert(state.downX < state.upX, `decrease/remove left and increase right in ${direction}`);
                             assert(Math.abs(result.width - state.width) < 0.1 && Math.abs(result.height - state.height) < 0.1, `counter matches add button at ${viewport.width}px: ${JSON.stringify(result)}`);
                         }
                     }

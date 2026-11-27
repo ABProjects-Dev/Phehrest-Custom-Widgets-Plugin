@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Place decrease/remove on the physical left and increase on the physical right in both RTL and LTR layouts.
+
 - Separate add-button and counter styling, add normal/hover controls, responsive minimum width and physical icon positioning; replace explicit width/height with content sizing. See widget documentation for saved-style compatibility.
 
 - Prevent the standard WooCommerce view-cart link from appearing inside the smart cart widget, without changing other buttons.

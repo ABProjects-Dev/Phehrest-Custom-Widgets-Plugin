@@ -57,6 +57,8 @@
     position: absolute;
     inset: 0;
     display: flex;
+    /* Physical order: decrease/remove on the left, increase on the right. */
+    direction: ltr;
     align-items: center;
     justify-content: space-between;
     width: 100%;
