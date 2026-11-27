@@ -101,4 +101,4 @@ fs.mkdirSync(output, { recursive: true });
         await page.screenshot({ path: `${output}/failure.png`, fullPage: true }).catch(() => {});
         throw error;
     } finally { await browser.close(); }
-})().catch(error => { console.error(error); process.exitCode = 1; });
+})().catch(error => { console.error(error); console.log('::error title=PCW browser test::' + String(error.stack || error).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')); process.exitCode = 1; });
