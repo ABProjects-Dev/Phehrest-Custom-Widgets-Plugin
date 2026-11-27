@@ -1,6 +1,6 @@
 # Phehrest Custom Widgets
 
-Independent, opt-in Elementor widgets. The current release is `0.2.0`; the included widget remains **Experimental**. Validate it on a staging site before production use.
+Independent, opt-in Elementor widgets. The current release is `0.3.0`; the included widget remains **Experimental**. Validate it on a staging site before production use.
 
 ## Setup
 

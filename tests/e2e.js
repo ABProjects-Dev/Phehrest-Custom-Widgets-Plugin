@@ -28,67 +28,127 @@ fs.mkdirSync(output, { recursive: true });
         await out.locator('.pcw-cart__status').waitFor({ state: 'visible' });
         // Elementor's saved responsive controls produce CSS, rather than only inline overrides.
         assert.equal(await out.locator('.pcw-cart__add').evaluate(el => getComputedStyle(el).minWidth), '180px');
-        assert(await out.locator('.pcw-cart__add').evaluate(el => el.classList.contains('pcw-cart__add--icon-left')), 'saved physical icon position renders');
         await page.setViewportSize({ width: 390, height: 844 });
         assert.equal(await out.locator('.pcw-cart__add').evaluate(el => getComputedStyle(el).minWidth), '140px');
         await page.setViewportSize({ width: 1440, height: 900 });
-        // Exercise the layout independently of cart requests, with the actual Elementor markup/CSS.
-        // The invisible add button remains the size anchor in both counter states.
+        assert.equal(await widget.locator('.pcw-cart__add .pcw-cart__icon').count(), 0, 'add button has no icon');
+        // Verify saved Elementor styles for both icon buttons and the quantity.
+        await out.evaluate(root => {
+            root.querySelector('.pcw-cart__add').hidden = true;
+            root.querySelector('.pcw-cart__counter').hidden = false;
+            root.querySelector('.pcw-cart__up').disabled = false;
+        });
+        const styledStep = out.locator('.pcw-cart__up');
+        assert.equal(await styledStep.evaluate(el => getComputedStyle(el).padding), '5px 8px');
+        assert.equal(await styledStep.locator('span').evaluate(el => getComputedStyle(el).fontSize), '24px');
+        assert.equal(await styledStep.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(17, 34, 51)');
+        assert.equal(await out.locator('.pcw-cart__quantity').evaluate(el => getComputedStyle(el).color), 'rgb(18, 52, 86)');
+        const stateColors = await out.evaluate(root => {
+            const counter = root.querySelector('.pcw-cart__counter');
+            root.classList.add('pcw-cart--one');
+            const one = getComputedStyle(counter).backgroundColor;
+            root.classList.remove('pcw-cart--one');
+            return [one, getComputedStyle(counter).backgroundColor];
+        });
+        assert.equal(stateColors[0], stateColors[1], 'obsolete per-quantity colors are ignored');
+        await styledStep.hover();
+        assert.equal(await styledStep.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(68, 85, 102)');
+        assert.equal(await styledStep.evaluate(el => getComputedStyle(el).color), 'rgb(255, 255, 255)');
+        await out.evaluate(root => {
+            root.querySelector('.pcw-cart__add').hidden = false;
+            root.querySelector('.pcw-cart__counter').hidden = true;
+            root.querySelector('.pcw-cart__up').disabled = true;
+        });
+        // Measure actual rendered text, rather than relying on clipping or z-index.
         for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
             await page.setViewportSize(viewport);
             for (const direction of ['rtl', 'ltr']) {
                 for (const text of ['خرید', 'افزودن این محصول فوق العاده طولانی به سبد خرید برای آزمایش واکنش گرایی']) {
-                    for (const position of ['right', 'left']) {
+                    for (const digits of ['1', '123456']) {
                         const result = await widget.evaluate((root, config) => {
                             document.documentElement.dir = config.direction;
                             const add = root.querySelector('.pcw-cart__add');
-                            const label = add.querySelector('.pcw-cart__label');
-                            const icon = add.querySelector('.pcw-cart__icon');
                             const counter = root.querySelector('.pcw-cart__counter');
+                            const quantity = root.querySelector('.pcw-cart__quantity');
+                            const label = add.querySelector('.pcw-cart__label');
+                            const original = quantity.textContent;
                             label.textContent = config.text;
-                            add.classList.toggle('pcw-cart__add--icon-right', config.position === 'right');
-                            add.classList.toggle('pcw-cart__add--icon-left', config.position === 'left');
-                            root.style.setProperty('--pcw-add-min-width', '130px');
-                            root.style.setProperty('--pcw-add-icon-size', '22px');
-                            const before = add.getBoundingClientRect();
-                            const labelRect = label.getBoundingClientRect();
-                            const iconRect = icon.getBoundingClientRect();
+                            quantity.textContent = config.digits;
+                            const addBox = add.getBoundingClientRect();
+                            const reserved = getComputedStyle(counter).visibility === 'hidden';
                             add.hidden = true;
                             counter.hidden = false;
-                            root.classList.add('pcw-cart--one');
-                            const anchorHidden = getComputedStyle(add).visibility === 'hidden';
-                            const counterState = () => ({
-                                rect: counter.getBoundingClientRect(),
-                                downX: root.querySelector('.pcw-cart__down').getBoundingClientRect().x,
-                                upX: root.querySelector('.pcw-cart__up').getBoundingClientRect().x,
-                                removeVisible: getComputedStyle(root.querySelector('.pcw-cart__remove')).display !== 'none',
-                                minusVisible: getComputedStyle(root.querySelector('.pcw-cart__minus')).display !== 'none',
-                            });
-                            const one = counterState();
-                            root.classList.remove('pcw-cart--one');
-                            const multiple = counterState();
+                            const hiddenAdd = getComputedStyle(add).visibility === 'hidden';
+                            const state = one => {
+                                root.classList.toggle('pcw-cart--one', one);
+                                const q = quantity.getBoundingClientRect();
+                                const down = root.querySelector('.pcw-cart__down');
+                                const up = root.querySelector('.pcw-cart__up');
+                                const a = down.getBoundingClientRect(), b = up.getBoundingClientRect(), c = counter.getBoundingClientRect();
+                                const icon = root.querySelector(one ? '.pcw-cart__remove' : '.pcw-cart__minus');
+                                return { width: c.width, height: c.height, left: a.left - c.left, right: c.right - b.right,
+                                    qLeft: q.left, qRight: q.right, leftEnd: a.right, rightStart: b.left,
+                                    centerDelta: q.left + q.width / 2 - (c.left + c.width / 2),
+                                    iconSize: getComputedStyle(icon).fontSize, iconMargin: getComputedStyle(icon).margin,
+                                    padding: getComputedStyle(down).padding, upPadding: getComputedStyle(up).padding,
+                                    shadow: getComputedStyle(down).boxShadow, transition: getComputedStyle(down).transitionDuration,
+                                    iconVisible: getComputedStyle(icon).display !== 'none' };
+                            };
+                            const one = state(true), multiple = state(false);
+                            root.style.setProperty('--pcw-counter-icon-size', '26px');
+                            const customSize = getComputedStyle(root.querySelector('.pcw-cart__up span')).fontSize;
+                            root.style.removeProperty('--pcw-counter-icon-size');
+                            root.classList.add('pcw-cart--hide-quantity');
+                            const hidden = state(false);
+                            root.classList.remove('pcw-cart--hide-quantity');
                             add.hidden = false;
                             counter.hidden = true;
-                            return { width: before.width, height: before.height, iconX: iconRect.x, labelX: labelRect.x, one: { width: one.rect.width, height: one.rect.height, downX: one.downX, upX: one.upX, removeVisible: one.removeVisible, minusVisible: one.minusVisible }, multiple: { width: multiple.rect.width, height: multiple.rect.height, downX: multiple.downX, upX: multiple.upX, removeVisible: multiple.removeVisible, minusVisible: multiple.minusVisible }, anchorHidden };
-                        }, { direction, text, position });
-                        assert(result.width >= 129, `minimum width applies: ${JSON.stringify(result)}`);
-                        assert(result.anchorHidden, 'size anchor is visually and accessibly hidden');
-                        assert(position === 'right' ? result.iconX > result.labelX : result.iconX < result.labelX, `physical icon position ${position} in ${direction}`);
-                        assert(result.one.removeVisible && !result.one.minusVisible, 'one shows remove');
-                        assert(!result.multiple.removeVisible && result.multiple.minusVisible, 'multiple shows minus');
+                            quantity.textContent = original;
+                            return { width: addBox.width, height: addBox.height, one, multiple, hidden, reserved, hiddenAdd, customSize };
+                        }, { direction, text, digits });
+                        assert(result.reserved && result.hiddenAdd, 'inactive state is visually and accessibly hidden');
+                        assert.equal(result.customSize, '26px', 'counter icon size can be overridden');
                         for (const state of [result.one, result.multiple]) {
-                            assert(state.downX < state.upX, `decrease/remove left and increase right in ${direction}`);
-                            assert(Math.abs(result.width - state.width) < 0.1 && Math.abs(result.height - state.height) < 0.1, `counter matches add button at ${viewport.width}px: ${JSON.stringify(result)}`);
+                            assert(state.iconVisible, 'correct icon is visible');
+                            assert(Math.abs(state.left - 1) < 0.1 && Math.abs(state.right - 1) < 0.1, `buttons sit at edges: ${JSON.stringify(state)}`);
+                            assert(Math.abs(state.centerDelta) < 0.1, `quantity stays centered: ${JSON.stringify(state)}`);
+                            assert(state.qLeft >= state.leftEnd && state.qRight <= state.rightStart, `quantity is not covered: ${JSON.stringify(state)}`);
+                            assert.equal(state.iconSize, '20px');
+                            assert.equal(state.iconMargin, '0px');
+                            assert.equal(state.padding, '10px');
+                            assert.equal(state.upPadding, '10px');
+                            assert.equal(state.shadow, 'none');
+                            assert.equal(state.transition, '0s');
+                            assert(Math.abs(result.width - state.width) < 0.1 && Math.abs(result.height - state.height) < 0.1, `counter matches add button: ${JSON.stringify(result)}`);
                         }
+                        assert(Math.abs(result.hidden.left - 1) < 0.1 && Math.abs(result.hidden.right - 1) < 0.1, 'buttons stay at edges with hidden quantity');
                     }
                 }
             }
         }
+        // Short labels, multi-digit counts and enlarged configurable controls must not overlap.
+        const large = await widget.evaluate(root => {
+            const add = root.querySelector('.pcw-cart__add'), counter = root.querySelector('.pcw-cart__counter');
+            const q = root.querySelector('.pcw-cart__quantity'), label = add.querySelector('.pcw-cart__label');
+            const steps = [...root.querySelectorAll('.pcw-cart__step')];
+            const original = q.textContent;
+            label.textContent = 'خرید'; q.textContent = '123456789'; q.style.fontSize = '28px';
+            root.style.setProperty('--pcw-counter-icon-size', '30px');
+            steps.forEach(el => { el.style.padding = '15px'; });
+            const addBox = add.getBoundingClientRect();
+            add.hidden = true; counter.hidden = false;
+            const c = counter.getBoundingClientRect(), n = q.getBoundingClientRect();
+            const a = steps[0].getBoundingClientRect(), b = steps[1].getBoundingClientRect();
+            const output = { addWidth: addBox.width, addHeight: addBox.height, width: c.width, height: c.height, left: a.right, qLeft: n.left, qRight: n.right, right: b.left, textWidth: q.clientWidth, scrollWidth: q.scrollWidth };
+            add.hidden = false; counter.hidden = true; q.textContent = original; q.style.removeProperty('font-size');
+            root.style.removeProperty('--pcw-counter-icon-size'); steps.forEach(el => el.style.removeProperty('padding'));
+            return output;
+        });
+        assert(large.qLeft >= large.left && large.qRight <= large.right, `large controls do not cover quantity: ${JSON.stringify(large)}`);
+        assert.equal(large.textWidth, large.scrollWidth, 'multi-digit text is not clipped');
+        assert(Math.abs(large.width - large.addWidth) < 0.1 && Math.abs(large.height - large.addHeight) < 0.1, 'large counter matches add dimensions');
         await widget.evaluate(root => {
             root.querySelector('.pcw-cart__label').textContent = 'افزودن به سبد خرید';
-            root.querySelector('.pcw-cart__add').classList.replace('pcw-cart__add--icon-left', 'pcw-cart__add--icon-right');
-            root.style.removeProperty('--pcw-add-min-width');
-            root.style.removeProperty('--pcw-add-icon-size');
             document.documentElement.dir = 'rtl';
         });
         await page.setViewportSize({ width: 1440, height: 900 });
