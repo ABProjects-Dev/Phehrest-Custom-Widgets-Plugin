@@ -16,7 +16,8 @@ fs.mkdirSync(output, { recursive: true });
         await page.goto(`${base}/?page_id=${fixture.page}`, { waitUntil: 'domcontentloaded' });
         const widget = page.locator(`.pcw-cart[data-product-id="${fixture.product}"]`);
         const out = page.locator(`.pcw-cart[data-product-id="${fixture.out}"]`);
-        await widget.locator('.pcw-cart__add').waitFor({ state: 'visible' });
+        try { await widget.locator('.pcw-cart__add').waitFor({ state: 'visible', timeout: 15000 }); }
+        catch (error) { throw new Error(`Initial widget not ready: ${await widget.innerText()} | ${await widget.evaluate(el => el.outerHTML.slice(0, 1500))}`); }
         await out.locator('.pcw-cart__status').waitFor({ state: 'visible' });
         assert.equal(await page.locator('html').getAttribute('dir'), 'rtl', 'Persian site renders RTL');
         assert.equal(await out.locator('.pcw-cart__add').isDisabled(), true, 'out-of-stock is disabled');
