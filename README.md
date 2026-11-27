@@ -1,6 +1,6 @@
 # Phehrest Custom Widgets
 
-Independent, opt-in Elementor widgets. **Experimental development build; not approved for production.** `0.1.0-dev` is a development identifier, not a release.
+Independent, opt-in Elementor widgets. This is the initial `0.1.0` release; the included widget remains **Experimental**. Validate it on a staging site before production use.
 
 ## Setup
 
@@ -25,4 +25,4 @@ npm ci && npm test
 PCW_TEST_ENV=1 wp eval-file tests/integration.php
 ```
 
-GitHub Actions runs the isolated tests on PHP 8.0, 8.2 and 8.3; WooCommerce smoke and deactivation/uninstall checks on the minimum WordPress 6.4 / Elementor 3.18 / WooCommerce 8.5 combination and current versions; and Chromium checks against a disposable real WordPress/Elementor/WooCommerce site. Screenshot artifacts contain real frontend/editor states; the network error is intentionally simulated. This matrix is not a guarantee for Elementor Pro, every theme, third-party extension, custom session handler or distributed database. Visual review and wider compatibility testing are still necessary before release.
+GitHub Actions runs the isolated tests on PHP 8.0, 8.2 and 8.3; WooCommerce smoke and deactivation/uninstall checks on the minimum WordPress 6.4 / Elementor 3.18 / WooCommerce 8.5 combination and current versions; and Chromium checks against a disposable real WordPress/Elementor/WooCommerce site. Screenshot artifacts contain real frontend/editor states; the network error is intentionally simulated. This matrix is not a guarantee for Elementor Pro, every theme, third-party extension, custom session handler or distributed database. Visual review and wider compatibility testing are still necessary before production use.
