@@ -11,7 +11,7 @@
         function update() { previous.disabled = index === 0; next.disabled = index === cards.length - 1; }
         function move(delta) {
             index = Math.max(0, Math.min(cards.length - 1, index + delta));
-            cards[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            cards[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
             update();
         }
         previous.addEventListener('click', () => move(-1));
@@ -29,7 +29,12 @@
             });
             update();
         }, { passive: true });
-        navigation.hidden = false;
-        update();
+        function refresh() {
+            navigation.hidden = track.scrollWidth <= track.clientWidth + 1;
+            update();
+        }
+        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(refresh).observe(track);
+        else window.addEventListener('resize', refresh);
+        refresh();
     });
 })();
