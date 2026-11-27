@@ -43,6 +43,14 @@ fs.mkdirSync(output, { recursive: true });
         assert.equal(await styledStep.locator('span').evaluate(el => getComputedStyle(el).fontSize), '24px');
         assert.equal(await styledStep.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(17, 34, 51)');
         assert.equal(await out.locator('.pcw-cart__quantity').evaluate(el => getComputedStyle(el).color), 'rgb(18, 52, 86)');
+        const stateColors = await out.evaluate(root => {
+            const counter = root.querySelector('.pcw-cart__counter');
+            root.classList.add('pcw-cart--one');
+            const one = getComputedStyle(counter).backgroundColor;
+            root.classList.remove('pcw-cart--one');
+            return [one, getComputedStyle(counter).backgroundColor];
+        });
+        assert.equal(stateColors[0], stateColors[1], 'obsolete per-quantity colors are ignored');
         await styledStep.hover();
         assert.equal(await styledStep.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(68, 85, 102)');
         assert.equal(await styledStep.evaluate(el => getComputedStyle(el).color), 'rgb(255, 255, 255)');
@@ -118,6 +126,27 @@ fs.mkdirSync(output, { recursive: true });
                 }
             }
         }
+        // Short labels, multi-digit counts and enlarged configurable controls must not overlap.
+        const large = await widget.evaluate(root => {
+            const add = root.querySelector('.pcw-cart__add'), counter = root.querySelector('.pcw-cart__counter');
+            const q = root.querySelector('.pcw-cart__quantity'), label = add.querySelector('.pcw-cart__label');
+            const steps = [...root.querySelectorAll('.pcw-cart__step')];
+            const original = q.textContent;
+            label.textContent = 'خرید'; q.textContent = '123456789'; q.style.fontSize = '28px';
+            root.style.setProperty('--pcw-counter-icon-size', '30px');
+            steps.forEach(el => { el.style.padding = '15px'; });
+            const addBox = add.getBoundingClientRect();
+            add.hidden = true; counter.hidden = false;
+            const c = counter.getBoundingClientRect(), n = q.getBoundingClientRect();
+            const a = steps[0].getBoundingClientRect(), b = steps[1].getBoundingClientRect();
+            const output = { addWidth: addBox.width, addHeight: addBox.height, width: c.width, height: c.height, left: a.right, qLeft: n.left, qRight: n.right, right: b.left, textWidth: q.clientWidth, scrollWidth: q.scrollWidth };
+            add.hidden = false; counter.hidden = true; q.textContent = original; q.style.removeProperty('font-size');
+            root.style.removeProperty('--pcw-counter-icon-size'); steps.forEach(el => el.style.removeProperty('padding'));
+            return output;
+        });
+        assert(large.qLeft >= large.left && large.qRight <= large.right, `large controls do not cover quantity: ${JSON.stringify(large)}`);
+        assert.equal(large.textWidth, large.scrollWidth, 'multi-digit text is not clipped');
+        assert(Math.abs(large.width - large.addWidth) < 0.1 && Math.abs(large.height - large.addHeight) < 0.1, 'large counter matches add dimensions');
         await widget.evaluate(root => {
             root.querySelector('.pcw-cart__label').textContent = 'افزودن به سبد خرید';
             document.documentElement.dir = 'rtl';

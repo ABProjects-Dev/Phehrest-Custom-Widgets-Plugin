@@ -26,7 +26,7 @@ $page = wp_insert_post(['post_type' => 'page', 'post_status' => 'publish', 'post
 $widget = static function ($id, $productId) {
     $settings = ['source' => 'selected', 'product_id' => $productId];
     if ($id === 'pcwout01') {
-        $settings += ['add_min_width' => ['unit' => 'px', 'size' => 180], 'add_min_width_mobile' => ['unit' => 'px', 'size' => 140], 'step_padding' => ['unit' => 'px', 'top' => '5', 'right' => '8', 'bottom' => '5', 'left' => '8', 'isLinked' => false], 'counter_icon_size' => ['unit' => 'px', 'size' => 24], 'step_background' => '#112233', 'step_hover_background' => '#445566', 'step_hover_color' => '#ffffff', 'quantity_color' => '#123456'];
+        $settings += ['add_min_width' => ['unit' => 'px', 'size' => 180], 'add_min_width_mobile' => ['unit' => 'px', 'size' => 140], 'step_padding' => ['unit' => 'px', 'top' => '5', 'right' => '8', 'bottom' => '5', 'left' => '8', 'isLinked' => false], 'counter_icon_size' => ['unit' => 'px', 'size' => 24], 'step_background' => '#112233', 'step_hover_background' => '#445566', 'step_hover_color' => '#ffffff', 'quantity_color' => '#123456', 'one_background' => '#ff0000', 'multiple_background' => '#00ff00'];
     }
     return ['id' => $id, 'elType' => 'widget', 'widgetType' => 'phehrest_ajax_smart_add_to_cart', 'settings' => $settings, 'elements' => []];
 };
