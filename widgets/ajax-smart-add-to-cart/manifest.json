@@ -2,7 +2,7 @@
   "id": "phehrest_ajax_smart_add_to_cart",
   "name": "AJAX Smart Add to Cart",
   "name_fa": "دکمه هوشمند افزودن به سبد خرید",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "An opt-in AJAX cart quantity control for WooCommerce.",
   "description_fa": "افزودن محصول و مدیریت تعداد آن در سبد خرید، بدون بارگذاری مجدد صفحه.",
   "category": "woocommerce-elements",

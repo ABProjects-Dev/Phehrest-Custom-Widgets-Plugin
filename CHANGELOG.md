@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-27
+
 - Place decrease/remove on the physical left and increase on the physical right in both RTL and LTR layouts.
 
 - Separate add-button and counter styling, add normal/hover controls, responsive minimum width and physical icon positioning; replace explicit width/height with content sizing. See widget documentation for saved-style compatibility.

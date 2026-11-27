@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Phehrest Custom Widgets
  * Description: Independent, opt-in Elementor widgets.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Text Domain: phehrest-custom-widgets
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) { exit; }
 define('PCW_FILE', __FILE__);
 define('PCW_PATH', plugin_dir_path(__FILE__));
 define('PCW_URL', plugin_dir_url(__FILE__));
-define('PCW_VERSION', '0.1.0');
+define('PCW_VERSION', '0.2.0');
 
 spl_autoload_register(static function ($class) {
     $prefix = 'Phehrest\\CustomWidgets\\';
