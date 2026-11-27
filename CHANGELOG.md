@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Center the cart quantity between edge-aligned icon buttons, with 20px icons and 10px icon margins by default.
+- Center the quantity between edge-aligned icon buttons with 20px icons and 10px button padding; reserve space to prevent overlapping the quantity.
+- Remove the add icon, widget animations, shadows and one/multiple-specific counter styling; add shared normal/hover icon-button and quantity controls. Review saved settings after updating.
 
 ## 0.2.0 — 2026-11-27
 
