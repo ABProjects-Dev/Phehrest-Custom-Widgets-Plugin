@@ -23,6 +23,13 @@ jobs:
       - run: php tests/design-system.php
       - run: php tests/idempotency.php
       - run: npm ci --ignore-scripts && npm test
+      - name: Build and validate installable release ZIP
+        if: matrix.php == '8.2'
+        run: |
+          scripts/package-release.sh "$GITHUB_SHA" /tmp/phehrest-custom-widgets-test.zip
+          unzip -tq /tmp/phehrest-custom-widgets-test.zip
+          unzip -p /tmp/phehrest-custom-widgets-test.zip phehrest-custom-widgets/phehrest-custom-widgets.php | grep -F 'Version: 0.1.0'
+          ! unzip -Z1 /tmp/phehrest-custom-widgets-test.zip | grep -E '(^|/)(node_modules|tests|\.git|\.github)/'
   woocommerce-smoke:
     runs-on: ubuntu-latest
     strategy:
