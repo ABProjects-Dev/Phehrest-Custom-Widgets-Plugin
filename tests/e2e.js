@@ -96,7 +96,7 @@ fs.mkdirSync(output, { recursive: true });
         const element = editorFrame.locator('.elementor-element-pcwmain1');
         await element.hover();
         const editHandle = element.locator('.elementor-editor-element-edit');
-        if (await editHandle.count()) await editHandle.first().click({ force: true });
+        if (await editHandle.count()) await editHandle.first().dispatchEvent('click');
         else await element.click();
         const search = page.locator('.pcw-product-search__input');
         try { await search.waitFor({ state: 'visible', timeout: 15000 }); }
