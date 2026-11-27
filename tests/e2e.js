@@ -55,6 +55,9 @@ fs.mkdirSync(output, { recursive: true });
                             const iconRect = icon.getBoundingClientRect();
                             add.hidden = true;
                             counter.hidden = false;
+                            const quantity = root.querySelector('.pcw-cart__quantity');
+                            const originalQuantity = quantity.textContent;
+                            quantity.textContent = '123';
                             root.classList.add('pcw-cart--one');
                             const anchorHidden = getComputedStyle(add).visibility === 'hidden';
                             const counterState = () => ({
@@ -63,21 +66,42 @@ fs.mkdirSync(output, { recursive: true });
                                 upX: root.querySelector('.pcw-cart__up').getBoundingClientRect().x,
                                 removeVisible: getComputedStyle(root.querySelector('.pcw-cart__remove')).display !== 'none',
                                 minusVisible: getComputedStyle(root.querySelector('.pcw-cart__minus')).display !== 'none',
+                                down: root.querySelector('.pcw-cart__down').getBoundingClientRect(),
+                                up: root.querySelector('.pcw-cart__up').getBoundingClientRect(),
+                                quantity: quantity.getBoundingClientRect(),
+                                icon: (() => { const css = getComputedStyle(root.classList.contains('pcw-cart--one') ? root.querySelector('.pcw-cart__remove') : root.querySelector('.pcw-cart__minus')); return { fontSize: css.fontSize, margin: css.margin }; })(),
+                                upIcon: (() => { const css = getComputedStyle(root.querySelector('.pcw-cart__up span')); return { fontSize: css.fontSize, margin: css.margin }; })(),
+
                             });
                             const one = counterState();
                             root.classList.remove('pcw-cart--one');
                             const multiple = counterState();
+                            root.style.setProperty('--pcw-counter-icon-size', '26px');
+                            const customSize = getComputedStyle(root.querySelector('.pcw-cart__up span')).fontSize;
+                            root.style.removeProperty('--pcw-counter-icon-size');
+                            root.classList.add('pcw-cart--hide-quantity');
+                            const hiddenQuantity = counterState();
+                            root.classList.remove('pcw-cart--hide-quantity');
                             add.hidden = false;
                             counter.hidden = true;
-                            return { width: before.width, height: before.height, iconX: iconRect.x, labelX: labelRect.x, one: { width: one.rect.width, height: one.rect.height, downX: one.downX, upX: one.upX, removeVisible: one.removeVisible, minusVisible: one.minusVisible }, multiple: { width: multiple.rect.width, height: multiple.rect.height, downX: multiple.downX, upX: multiple.upX, removeVisible: multiple.removeVisible, minusVisible: multiple.minusVisible }, anchorHidden };
+                            quantity.textContent = originalQuantity;
+                            return { width: before.width, height: before.height, iconX: iconRect.x, labelX: labelRect.x, one: { width: one.rect.width, height: one.rect.height, downX: one.downX, upX: one.upX, removeVisible: one.removeVisible, minusVisible: one.minusVisible, leftInset: one.down.left - one.rect.left, rightInset: one.rect.right - one.up.right, centerDelta: (one.quantity.left + one.quantity.width / 2) - (one.rect.left + one.rect.width / 2), iconSize: one.icon.fontSize, iconMargin: one.icon.margin, upIconSize: one.upIcon.fontSize, upIconMargin: one.upIcon.margin }, multiple: { width: multiple.rect.width, height: multiple.rect.height, downX: multiple.downX, upX: multiple.upX, removeVisible: multiple.removeVisible, minusVisible: multiple.minusVisible, leftInset: multiple.down.left - multiple.rect.left, rightInset: multiple.rect.right - multiple.up.right, centerDelta: (multiple.quantity.left + multiple.quantity.width / 2) - (multiple.rect.left + multiple.rect.width / 2), iconSize: multiple.icon.fontSize, iconMargin: multiple.icon.margin, upIconSize: multiple.upIcon.fontSize, upIconMargin: multiple.upIcon.margin }, customSize, hiddenLeftInset: hiddenQuantity.down.left - hiddenQuantity.rect.left, hiddenRightInset: hiddenQuantity.rect.right - hiddenQuantity.up.right, anchorHidden };
                         }, { direction, text, position });
                         assert(result.width >= 129, `minimum width applies: ${JSON.stringify(result)}`);
                         assert(result.anchorHidden, 'size anchor is visually and accessibly hidden');
+                        assert.equal(result.customSize, '26px', 'counter icon size can be overridden');
+                        assert(Math.abs(result.hiddenLeftInset - 1) < 0.1 && Math.abs(result.hiddenRightInset - 1) < 0.1, 'buttons stay at edges when quantity is hidden');
                         assert(position === 'right' ? result.iconX > result.labelX : result.iconX < result.labelX, `physical icon position ${position} in ${direction}`);
                         assert(result.one.removeVisible && !result.one.minusVisible, 'one shows remove');
                         assert(!result.multiple.removeVisible && result.multiple.minusVisible, 'multiple shows minus');
                         for (const state of [result.one, result.multiple]) {
                             assert(state.downX < state.upX, `decrease/remove left and increase right in ${direction}`);
+                            assert(Math.abs(state.leftInset - 1) < 0.1 && Math.abs(state.rightInset - 1) < 0.1, `buttons sit at counter edges: ${JSON.stringify(state)}`);
+                            assert(Math.abs(state.centerDelta) < 0.1, `quantity stays centered: ${JSON.stringify(state)}`);
+                            assert.equal(state.iconSize, '20px');
+                            assert.equal(state.iconMargin, '10px');
+                            assert.equal(state.upIconSize, '20px');
+                            assert.equal(state.upIconMargin, '10px');
                             assert(Math.abs(result.width - state.width) < 0.1 && Math.abs(result.height - state.height) < 0.1, `counter matches add button at ${viewport.width}px: ${JSON.stringify(result)}`);
                         }
                     }

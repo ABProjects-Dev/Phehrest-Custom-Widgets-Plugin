@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Center the cart quantity between edge-aligned icon buttons, with 20px icons and 10px icon margins by default.
+
 ## 0.2.0 — 2026-11-27
 
 - Place decrease/remove on the physical left and increase on the physical right in both RTL and LTR layouts.
