@@ -1,0 +1,53 @@
+name: Quality checks
+on:
+  push:
+  pull_request:
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.0', '8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: find . -name '*.php' -not -path './node_modules/*' -print0 | xargs -0 -n1 php -l
+      - run: php widgets/ajax-smart-add-to-cart/tests/CartServiceTest.php
+      - run: php tests/isolation.php
+      - run: npm ci --ignore-scripts && npm test
+  woocommerce-smoke:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pcw_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: wp-cli
+          extensions: mysqli, curl, mbstring, xml, zip
+      - name: Install disposable WordPress, WooCommerce and Elementor
+        run: |
+          mkdir -p /tmp/pcw-wp
+          wp core download --path=/tmp/pcw-wp --quiet
+          wp config create --path=/tmp/pcw-wp --dbname=pcw_test --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --path=/tmp/pcw-wp --url=http://example.test --title=PCW-test --admin_user=admin --admin_password=test-only --admin_email=test@example.test --skip-email
+          wp plugin install woocommerce elementor --activate --path=/tmp/pcw-wp
+          ln -s "$GITHUB_WORKSPACE" /tmp/pcw-wp/wp-content/plugins/phehrest-custom-widgets
+          wp plugin activate phehrest-custom-widgets --path=/tmp/pcw-wp
+      - name: Exercise WooCommerce cart APIs on the disposable site
+        run: PCW_TEST_ENV=1 wp eval-file "$GITHUB_WORKSPACE/tests/integration.php" --path=/tmp/pcw-wp

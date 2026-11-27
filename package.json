@@ -1,0 +1,6 @@
+{
+  "name": "phehrest-custom-widgets-tests",
+  "private": true,
+  "scripts": {"test": "node --test tests/frontend.test.js"},
+  "devDependencies": {"jsdom": "^24.1.3"}
+}
