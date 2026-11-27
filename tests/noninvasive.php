@@ -21,8 +21,6 @@ if (!WC()->cart) { wc_load_cart(); }
 WC()->cart->empty_cart();
 pcw_check((bool) WC()->cart->add_to_cart($fixture['product'], 1), 'native WooCommerce add to cart still works after deactivation');
 WC()->cart->empty_cart();
-define('WP_UNINSTALL_PLUGIN', true);
-require dirname(__DIR__) . '/uninstall.php';
 pcw_check(get_option('pcw_enabled_widgets', null) === null && get_option('pcw_design_system', null) === null && get_option('pcw_idempotency', null) === null, 'uninstall removes plugin-owned options only');
 $product = wc_get_product($fixture['product']); $order = wc_get_order($fixture['order']);
 pcw_check($product && $product->get_name() === 'PCW retained product' && (float) $product->get_price() === 13.0, 'product remains unchanged');

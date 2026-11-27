@@ -76,6 +76,7 @@ jobs:
         run: |
           PCW_TEST_ENV=1 PCW_TEST_PHASE=create wp eval-file "$GITHUB_WORKSPACE/tests/noninvasive.php" --path=/tmp/pcw-wp
           wp plugin deactivate phehrest-custom-widgets --path=/tmp/pcw-wp
+          wp plugin uninstall phehrest-custom-widgets --skip-delete --path=/tmp/pcw-wp
           PCW_TEST_ENV=1 PCW_TEST_PHASE=verify wp eval-file "$GITHUB_WORKSPACE/tests/noninvasive.php" --path=/tmp/pcw-wp
           find /tmp/pcw-wp/wp-admin /tmp/pcw-wp/wp-includes /tmp/pcw-wp/wp-content/plugins/woocommerce /tmp/pcw-wp/wp-content/plugins/elementor /tmp/pcw-wp/wp-content/themes -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/pcw-protected-after.sha256
           diff -u /tmp/pcw-protected-before.sha256 /tmp/pcw-protected-after.sha256
