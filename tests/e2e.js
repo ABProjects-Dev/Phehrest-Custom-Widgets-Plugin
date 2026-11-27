@@ -78,9 +78,17 @@ fs.mkdirSync(output, { recursive: true });
         await page.goto(`${base}/wp-admin/post.php?post=${fixture.page}&action=elementor`, { waitUntil: 'domcontentloaded' });
         const editorFrame = page.frameLocator('#elementor-preview-iframe');
         await editorFrame.locator(`.pcw-cart[data-product-id="${fixture.product}"]`).waitFor({ timeout: 90000 });
-        await editorFrame.locator('.elementor-element-pcwmain1').click();
+        const element = editorFrame.locator('.elementor-element-pcwmain1');
+        await element.hover();
+        const editHandle = element.locator('.elementor-editor-element-edit');
+        if (await editHandle.count()) await editHandle.first().click({ force: true });
+        else await element.click();
         const search = page.locator('.pcw-product-search__input');
-        await search.waitFor({ state: 'visible', timeout: 30000 });
+        try { await search.waitFor({ state: 'visible', timeout: 15000 }); }
+        catch (error) {
+            const details = await page.locator('#elementor-panel').innerText().catch(() => 'no panel');
+            throw new Error(`Product search not visible; panel: ${details.slice(0, 1500)}`);
+        }
         await search.fill('محصول');
         const searchResult = page.locator('.pcw-product-search__results button').filter({ hasText: 'محصول آزمایشی فهرست' });
         await searchResult.waitFor({ state: 'visible' });

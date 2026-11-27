@@ -48,10 +48,18 @@ jobs:
           wp config create --path=/tmp/pcw-wp --dbname=pcw_test --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
           wp core install --path=/tmp/pcw-wp --url=http://example.test --title=PCW-test --admin_user=admin --admin_password=test-only --admin_email=test@example.test --skip-email
           wp plugin install woocommerce elementor --activate --path=/tmp/pcw-wp
+          find /tmp/pcw-wp/wp-admin /tmp/pcw-wp/wp-includes /tmp/pcw-wp/wp-content/plugins/woocommerce /tmp/pcw-wp/wp-content/plugins/elementor /tmp/pcw-wp/wp-content/themes -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/pcw-protected-before.sha256
           ln -s "$GITHUB_WORKSPACE" /tmp/pcw-wp/wp-content/plugins/phehrest-custom-widgets
           wp plugin activate phehrest-custom-widgets --path=/tmp/pcw-wp
       - name: Exercise WooCommerce cart APIs on the disposable site
         run: PCW_TEST_ENV=1 wp eval-file "$GITHUB_WORKSPACE/tests/integration.php" --path=/tmp/pcw-wp
+      - name: Test deactivation and uninstall isolation
+        run: |
+          PCW_TEST_ENV=1 PCW_TEST_PHASE=create wp eval-file "$GITHUB_WORKSPACE/tests/noninvasive.php" --path=/tmp/pcw-wp
+          wp plugin deactivate phehrest-custom-widgets --path=/tmp/pcw-wp
+          PCW_TEST_ENV=1 PCW_TEST_PHASE=verify wp eval-file "$GITHUB_WORKSPACE/tests/noninvasive.php" --path=/tmp/pcw-wp
+          find /tmp/pcw-wp/wp-admin /tmp/pcw-wp/wp-includes /tmp/pcw-wp/wp-content/plugins/woocommerce /tmp/pcw-wp/wp-content/plugins/elementor /tmp/pcw-wp/wp-content/themes -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/pcw-protected-after.sha256
+          diff -u /tmp/pcw-protected-before.sha256 /tmp/pcw-protected-after.sha256
 
   browser:
     runs-on: ubuntu-latest
@@ -93,6 +101,11 @@ jobs:
           PHP_CLI_SERVER_WORKERS=4 wp server --host=127.0.0.1 --port=8080 --path=/tmp/pcw-wp > /tmp/pcw-server.log 2>&1 &
       - name: Exercise real Elementor pages and capture screenshots
         run: npm run test:e2e
+      - name: Verify AJAX endpoint is unavailable after deactivation
+        run: |
+          wp plugin deactivate phehrest-custom-widgets --path=/tmp/pcw-wp
+          result=$(curl -fsS -X POST -d 'action=pcw_cart_change' http://127.0.0.1:8080/wp-admin/admin-ajax.php || true)
+          test "$result" = 0
       - name: Upload real screenshots
         if: always()
         uses: actions/upload-artifact@v4
