@@ -1,6 +1,6 @@
 # Phehrest Custom Widgets
 
-Independent, opt-in Elementor widgets. The current release is `0.4.0`; the included widget remains **Experimental**. Validate it on a staging site before production use.
+Independent, opt-in Elementor widgets. The current release is `0.5.0`; the included widget remains **Experimental**. Validate it on a staging site before production use.
 
 ## Setup
 
@@ -8,7 +8,7 @@ Install on a staging site with PHP 8.0+, WordPress 6.4+, Elementor 3.18+ and Woo
 
 See the [widget guide](widgets/ajax-smart-add-to-cart/README.md) and [Persian guide](README.fa.md).
 
-## Current cart product source (unreleased, experimental)
+## Current cart product source (experimental)
 
 With WooCommerce and a compatible Elementor Pro widget, choose **Query → Source → Current Cart Products** in Posts, Loop Grid or Loop Carousel. For loops use a compatible post loop item that renders products; Elementor's product-specific loop/query implementations may not expose this source. The integration targets Elementor Pro's group-query controls and `elementor/query/query_args`; control IDs and behavior vary by version. It has not been tested against Elementor Pro itself, Products widgets, archives or third-party widgets. Test the exact setup on staging. It is independent of whether our cart widget is enabled. No Query ID is needed.
 

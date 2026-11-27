@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.0 — 2026-11-27
+
 - Add an experimental current-cart product query source for compatible Elementor Pro Posts and Loop widgets. Review cache and compatibility warnings in the guides.
 
 ## 0.4.0 — 2026-11-27
