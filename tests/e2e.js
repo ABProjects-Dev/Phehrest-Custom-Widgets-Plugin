@@ -11,13 +11,20 @@ fs.mkdirSync(output, { recursive: true });
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'fa-IR' });
     const page = await context.newPage();
-    page.on('pageerror', error => console.error('Browser page error:', error));
+    const diagnostics = [];
+    page.on('pageerror', error => { console.error('Browser page error:', error); diagnostics.push(`error:${error.message}`); });
+    page.on('request', request => { if (request.url().includes('admin-ajax.php')) diagnostics.push(`request:${request.postData() || ''}`); });
+    page.on('response', response => { if (response.url().includes('admin-ajax.php')) diagnostics.push(`response:${response.status()}`); });
+    page.on('requestfailed', request => { if (request.url().includes('admin-ajax.php')) diagnostics.push(`failed:${request.failure()?.errorText}`); });
     try {
         await page.goto(`${base}/?page_id=${fixture.page}`, { waitUntil: 'domcontentloaded' });
         const widget = page.locator(`.pcw-cart[data-product-id="${fixture.product}"]`);
         const out = page.locator(`.pcw-cart[data-product-id="${fixture.out}"]`);
-        try { await widget.locator('.pcw-cart__add').waitFor({ state: 'visible', timeout: 15000 }); }
-        catch (error) { throw new Error(`Initial widget not ready: ${await widget.innerText()} | ${await widget.evaluate(el => el.outerHTML.slice(0, 1500))}`); }
+        try { await widget.locator('.pcw-cart__add').waitFor({ state: 'visible', timeout: 30000 }); }
+        catch (error) {
+            const info = await page.evaluate(() => ({ ready: document.readyState, config: typeof pcwSmartCart, scripts: [...document.scripts].map(s => s.src).filter(s => s.includes('phehrest')) }));
+            throw new Error(`Initial widget not ready: ${await widget.innerText()} | info ${JSON.stringify(info)} | events ${JSON.stringify(diagnostics)}`);
+        }
         await out.locator('.pcw-cart__status').waitFor({ state: 'visible' });
         assert.equal(await page.locator('html').getAttribute('dir'), 'rtl', 'Persian site renders RTL');
         assert.equal(await out.locator('.pcw-cart__add').isDisabled(), true, 'out-of-stock is disabled');
@@ -54,6 +61,13 @@ fs.mkdirSync(output, { recursive: true });
         await widget.locator('.pcw-cart__retry').waitFor({ state: 'visible' });
         await page.screenshot({ path: `${output}/07-simulated-network-error.png`, fullPage: true });
         await page.unroute('**/wp-admin/admin-ajax.php');
+        // Invalid CSRF credentials cannot alter a guest cart.
+        const csrf = await page.evaluate(async productId => {
+            const body = new URLSearchParams({ action: 'pcw_cart_change', product_id: productId, variation_id: '0', operation: 'add', quantity: '0', key: '', nonce: 'invalid', token: 'invalid', request_id: 'b'.repeat(32) });
+            const response = await fetch('/wp-admin/admin-ajax.php', { method: 'POST', credentials: 'same-origin', body });
+            return response.status;
+        }, String(fixture.product));
+        assert.equal(csrf, 403, 'invalid CSRF credentials are rejected');
         // Two identical mutations from separate concurrent HTTP requests must never double-add.
         const concurrent = await page.evaluate(async productId => {
             async function post(values) {

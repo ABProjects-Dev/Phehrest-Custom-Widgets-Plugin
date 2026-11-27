@@ -31,6 +31,7 @@ final class Module {
                 'decrease' => __('کاهش تعداد', 'phehrest-custom-widgets'),
                 'remove' => __('حذف از سبد خرید', 'phehrest-custom-widgets'),
                 'quantity' => __('تعداد در سبد خرید:', 'phehrest-custom-widgets'),
+                'unavailable' => __('این محصول در حال حاضر قابل خرید نیست.', 'phehrest-custom-widgets'),
             ],
         ]);
     }

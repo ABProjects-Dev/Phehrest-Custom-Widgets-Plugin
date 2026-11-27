@@ -29,7 +29,7 @@
             .then(async response => {
                 let json;
                 try { json = await response.json(); } catch (_) { throw new Error(messages.network); }
-                if (!response.ok || !json.success) throw new Error(json.data?.message || messages.network);
+                if (!response.ok || !json.success) { const error = new Error(json.data?.message || messages.network); error.status = response.status; throw error; }
                 return json.data;
             });
     }
@@ -58,7 +58,7 @@
         down.setAttribute('aria-label', count === 1 ? messages.remove : messages.decrease);
         widget.querySelector('.pcw-cart__quantity').textContent = String(count);
         widget.querySelector('.pcw-cart__quantity').setAttribute('aria-label', `${messages.quantity} ${count}`);
-        status.textContent = !state.purchasable && !count ? 'این محصول در حال حاضر قابل خرید نیست.' : '';
+        status.textContent = !state.purchasable && !count ? messages.unavailable : '';
         widget.hidden = !state.purchasable && !count && widget.dataset.outOfStock === 'hide';
     }
     async function sync(widget) {
@@ -74,7 +74,15 @@
             return;
         }
         try {
-            const pending = stateQueue.then(() => request('pcw_cart_state', widget, variation));
+            const pending = stateQueue.then(async () => {
+                for (let attempt = 0; ; attempt++) {
+                    try { return await request('pcw_cart_state', widget, variation); }
+                    catch (error) {
+                        if (error.status !== 409 || attempt >= 3) throw error;
+                        await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+                    }
+                }
+            });
             stateQueue = pending.catch(() => {});
             const state = await pending;
             if (generation !== widget.pcwGeneration || changing) return;
