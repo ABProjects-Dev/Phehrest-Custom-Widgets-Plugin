@@ -50,14 +50,16 @@ fs.mkdirSync(output, { recursive: true });
                             add.hidden = true;
                             counter.hidden = false;
                             root.classList.add('pcw-cart--one');
+                            const anchorHidden = getComputedStyle(add).visibility === 'hidden';
                             const one = counter.getBoundingClientRect();
                             root.classList.remove('pcw-cart--one');
                             const multiple = counter.getBoundingClientRect();
                             add.hidden = false;
                             counter.hidden = true;
-                            return { width: before.width, height: before.height, iconX: iconRect.x, labelX: labelRect.x, one: { width: one.width, height: one.height }, multiple: { width: multiple.width, height: multiple.height }, anchorHidden: !add.hidden };
+                            return { width: before.width, height: before.height, iconX: iconRect.x, labelX: labelRect.x, one: { width: one.width, height: one.height }, multiple: { width: multiple.width, height: multiple.height }, anchorHidden };
                         }, { direction, text, position });
-                        assert(result.width >= 129, 'minimum width applies');
+                        assert(result.width >= 129, `minimum width applies: ${JSON.stringify(result)}`);
+                        assert(result.anchorHidden, 'size anchor is visually and accessibly hidden');
                         assert(position === 'right' ? result.iconX > result.labelX : result.iconX < result.labelX, `physical icon position ${position} in ${direction}`);
                         for (const state of [result.one, result.multiple]) {
                             assert(Math.abs(result.width - state.width) < 0.1 && Math.abs(result.height - state.height) < 0.1, `counter matches add button at ${viewport.width}px: ${JSON.stringify(result)}`);

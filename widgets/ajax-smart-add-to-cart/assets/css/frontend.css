@@ -33,7 +33,7 @@
     flex-direction: row;
     direction: ltr;
     width: auto;
-    min-width: min(var(--pcw-add-min-width, 0px), 100%);
+    min-width: var(--pcw-add-min-width, 0px);
     max-width: 100%;
     min-height: 0;
     gap: var(--pcw-add-gap, var(--pcw-default-gap, 12px));
