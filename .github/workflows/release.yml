@@ -1,0 +1,49 @@
+name: Publish release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Stable release tag (for example v0.1.0)'
+        required: true
+        type: string
+      target:
+        description: 'Exact full commit SHA currently at the tip of main'
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Validate release target and build package
+        env:
+          TAG: ${{ inputs.tag }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$TARGET" =~ ^[0-9a-f]{40}$ ]]
+          git fetch origin main:refs/remotes/origin/main
+          test "$(git rev-parse refs/remotes/origin/main)" = "$TARGET"
+          version=$(git show "$TARGET:phehrest-custom-widgets.php" | sed -n 's/^ \* Version: //p')
+          test "$TAG" = "v$version"
+          git show "$TARGET:releases/$TAG.md" > "$RUNNER_TEMP/release-notes.md"
+          scripts/package-release.sh "$TARGET" "$RUNNER_TEMP/phehrest-custom-widgets-$version.zip"
+          (cd "$RUNNER_TEMP" && sha256sum "phehrest-custom-widgets-$version.zip" > "phehrest-custom-widgets-$version.sha256")
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo 'Tag already exists; aborting without modifying the release.' >&2
+            exit 1
+          fi
+      - name: Publish GitHub release and assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          gh release create "$TAG" "$RUNNER_TEMP/phehrest-custom-widgets-$version.zip" "$RUNNER_TEMP/phehrest-custom-widgets-$version.sha256" --target "$TARGET" --title "Phehrest Custom Widgets $TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
