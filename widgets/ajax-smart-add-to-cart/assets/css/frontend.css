@@ -7,7 +7,6 @@
     --pcw-plus: var(--pcw-default-plus, #4d5ed2);
     --pcw-minus: var(--pcw-default-minus, #263650);
     --pcw-remove: var(--pcw-default-remove, #d04b5a);
-    --pcw-duration: var(--pcw-default-duration, 180ms);
     display: inline-block;
     width: max-content;
     max-width: 100%;
@@ -16,7 +15,8 @@
 .pcw-cart [hidden], .pcw-cart[hidden] { display: none !important; }
 .pcw-cart__control {
     position: relative;
-    display: inline-flex;
+    display: inline-grid;
+    grid-template-columns: minmax(0, auto);
     width: max-content;
     max-width: 100%;
     vertical-align: top;
@@ -24,19 +24,16 @@
 .pcw-cart__add, .pcw-cart__counter {
     box-sizing: border-box;
     border: 1px solid var(--pcw-border);
-    box-shadow: var(--pcw-default-shadow, 0 5px 16px rgba(34, 49, 106, .08));
 }
 .pcw-cart__add {
+    grid-area: 1 / 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex-direction: row;
-    direction: ltr;
-    width: auto;
+    width: 100%;
     min-width: var(--pcw-add-min-width, 0px);
     max-width: 100%;
     min-height: 0;
-    gap: var(--pcw-add-gap, var(--pcw-default-gap, 12px));
     padding: 12px 18px;
     border-color: transparent;
     border-radius: var(--pcw-add-radius, var(--pcw-default-radius, 14px));
@@ -45,20 +42,18 @@
     font: inherit;
     font-weight: 700;
     cursor: pointer;
-    transition: background var(--pcw-duration), color var(--pcw-duration), border-color var(--pcw-duration), box-shadow var(--pcw-duration), transform var(--pcw-duration), opacity var(--pcw-duration);
 }
-.pcw-cart__add--icon-right { flex-direction: row-reverse; }
 .pcw-cart__label { min-width: 0; text-align: center; overflow-wrap: anywhere; }
-.pcw-cart__icon { display: inline-flex; flex: 0 0 auto; font-size: var(--pcw-add-icon-size, 16px); line-height: 1; }
-.pcw-cart__add:hover:not(:disabled) { background: var(--pcw-hover); transform: translateY(-1px); }
-/* Keep the hidden add button as an invisible, non-interactive size anchor. */
+.pcw-cart__add:hover:not(:disabled) { background: var(--pcw-hover); }
+/* Both states participate in intrinsic sizing, but the inactive state stays
+   invisible and inaccessible. This reserves space for the whole counter. */
 .pcw-cart .pcw-cart__add[hidden] { display: inline-flex !important; visibility: hidden; pointer-events: none; }
+.pcw-cart .pcw-cart__counter[hidden] { display: grid !important; visibility: hidden; pointer-events: none; }
 .pcw-cart__counter {
-    position: absolute;
-    inset: 0;
+    grid-area: 1 / 1;
     display: grid;
     /* Equal outer columns keep the quantity centered and both controls at the edges. */
-    grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
+    grid-template-columns: minmax(max-content, 1fr) max-content minmax(max-content, 1fr);
     direction: ltr;
     align-items: center;
     width: 100%;
@@ -67,10 +62,8 @@
     gap: var(--pcw-counter-gap, 0px);
     padding: 0;
     border-radius: var(--pcw-counter-radius, var(--pcw-default-radius, 14px));
-    background: var(--pcw-multiple-bg, var(--pcw-counter-bg));
+    background: var(--pcw-counter-bg);
 }
-.pcw-cart--one .pcw-cart__counter { background: var(--pcw-one-bg, var(--pcw-counter-bg)); border-color: var(--pcw-one-border, var(--pcw-border)); }
-.pcw-cart:not(.pcw-cart--one) .pcw-cart__counter { border-color: var(--pcw-multiple-border, var(--pcw-border)); }
 .pcw-cart__step {
     display: inline-flex;
     align-items: center;
@@ -81,22 +74,21 @@
     width: max-content;
     height: max-content;
     margin: 0;
-    padding: 0;
-    border: 0;
+    padding: 10px;
+    border: 0 solid transparent;
     border-radius: max(0px, calc(var(--pcw-counter-radius, var(--pcw-default-radius, 14px)) - 4px));
     background: transparent;
     color: var(--pcw-minus);
     cursor: pointer;
-    transition: background var(--pcw-duration), opacity var(--pcw-duration);
 }
 .pcw-cart__step:hover:not(:disabled) { background: rgba(70, 89, 190, .1); }
 .pcw-cart__up { grid-column: 3; justify-self: end; color: var(--pcw-plus); }
 .pcw-cart--one .pcw-cart__down { color: var(--pcw-remove); }
-.pcw-cart__remove, .pcw-cart--one .pcw-cart__minus { display: none; }
-.pcw-cart--one .pcw-cart__remove { display: inline-flex; }
-.pcw-cart__quantity { grid-column: 2; min-width: 0; overflow: hidden; color: var(--pcw-quantity-color, #202c46); font-weight: 700; text-align: center; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.pcw-cart--hide-quantity .pcw-cart__quantity { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
-.pcw-cart__step span { margin: 10px; font-size: var(--pcw-counter-icon-size, 20px); line-height: 1; }
+.pcw-cart__step .pcw-cart__remove, .pcw-cart--one .pcw-cart__step .pcw-cart__minus { display: none; }
+.pcw-cart--one .pcw-cart__step .pcw-cart__remove { display: inline-flex; }
+.pcw-cart__quantity { grid-column: 2; min-width: max-content; color: var(--pcw-quantity-color, #202c46); font-weight: 700; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pcw-cart--hide-quantity .pcw-cart__quantity { position: absolute; min-width: 0; padding: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.pcw-cart__step span { display: inline-flex; align-items: center; justify-content: center; width: 1em; height: 1em; margin: 0; font-size: var(--pcw-counter-icon-size, 20px); line-height: 1; }
 .pcw-cart svg { width: 1em; height: 1em; fill: currentColor; }
 .pcw-cart button:focus-visible { outline: 3px solid #f3a63d; outline-offset: 3px; }
 .pcw-cart button:disabled { cursor: not-allowed; opacity: .48; }
@@ -105,5 +97,4 @@
 .pcw-cart__status:empty { display: none; }
 .pcw-cart__retry { margin-top: 6px; padding: 4px 0; border: 0; background: transparent; color: #4555c7; text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; }
 .pcw-cart__retry:focus-visible { outline: 3px solid #f3a63d; outline-offset: 3px; }
-.pcw-cart--no-animation *, .pcw-cart--no-animation *::before, .pcw-cart--no-animation *::after { transition: none !important; }
-@media (prefers-reduced-motion: reduce) { .pcw-cart *, .pcw-cart *::before, .pcw-cart *::after { transition: none !important; } }
+.pcw-cart button, .pcw-cart__counter { box-shadow: none !important; transition: none !important; animation: none !important; }

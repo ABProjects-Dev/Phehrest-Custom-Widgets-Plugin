@@ -3,6 +3,14 @@
 if (getenv('PCW_TEST_ENV') !== '1' || !defined('WP_CLI') || !WP_CLI) { throw new RuntimeException('Disposable WP-CLI test site required.'); }
 update_option('pcw_enabled_widgets', ['phehrest_ajax_smart_add_to_cart' => true], false);
 update_option('woocommerce_enable_ajax_add_to_cart', 'yes');
+// Verify the actual Elementor control registry, not just rendered CSS.
+$widgetControls = (new \Phehrest\CustomWidgets\Widgets\AjaxSmartAddToCart\Widget())->get_controls();
+foreach (['icon_add', 'icon_position', 'icon_size', 'gap', 'add_icon_color', 'hover_icon_color', 'animate', 'transition', 'one_background', 'one_border', 'one_padding', 'one_radius', 'multiple_background', 'multiple_border', 'multiple_padding', 'multiple_radius', 'shadow_box_shadow_type', 'counter_shadow_box_shadow_type'] as $removed) {
+    if (isset($widgetControls[$removed])) { throw new RuntimeException("Unexpected removed widget control: $removed"); }
+}
+foreach (['counter_icon_size', 'step_padding', 'step_radius', 'step_border_width', 'step_background', 'step_hover_color', 'step_hover_background', 'step_hover_border_color', 'quantity_color', 'quantity_background', 'quantity_padding', 'quantity_radius', 'counter_typography_typography'] as $required) {
+    if (!isset($widgetControls[$required])) { throw new RuntimeException("Missing widget control: $required"); }
+}
 $product = new WC_Product_Simple();
 $product->set_name('محصول آزمایشی فهرست'); $product->set_status('publish'); $product->set_regular_price('20');
 $product->set_manage_stock(true); $product->set_stock_quantity(20); $productId = $product->save();
@@ -13,7 +21,7 @@ $page = wp_insert_post(['post_type' => 'page', 'post_status' => 'publish', 'post
 $widget = static function ($id, $productId) {
     $settings = ['source' => 'selected', 'product_id' => $productId];
     if ($id === 'pcwout01') {
-        $settings += ['icon_position' => 'left', 'add_min_width' => ['unit' => 'px', 'size' => 180], 'add_min_width_mobile' => ['unit' => 'px', 'size' => 140]];
+        $settings += ['add_min_width' => ['unit' => 'px', 'size' => 180], 'add_min_width_mobile' => ['unit' => 'px', 'size' => 140], 'step_padding' => ['unit' => 'px', 'top' => '5', 'right' => '8', 'bottom' => '5', 'left' => '8', 'isLinked' => false], 'counter_icon_size' => ['unit' => 'px', 'size' => 24], 'step_background' => '#112233', 'step_hover_background' => '#445566', 'step_hover_color' => '#ffffff', 'quantity_color' => '#123456'];
     }
     return ['id' => $id, 'elType' => 'widget', 'widgetType' => 'phehrest_ajax_smart_add_to_cart', 'settings' => $settings, 'elements' => []];
 };
