@@ -86,6 +86,12 @@ fs.mkdirSync(output, { recursive: true });
         assert(concurrent.attempts.some(x => x.body.success), 'one concurrent request succeeds');
         assert.equal(concurrent.replay.body.data.replayed, true, 'identical retry replays without mutation');
         assert.equal(concurrent.latest.body.data.quantity, 1, 'concurrent requests do not duplicate product');
+        const cleanup = await page.evaluate(async ({ productId, state }) => {
+            const body = new URLSearchParams({ action: 'pcw_cart_change', product_id: productId, variation_id: '0', operation: 'remove', key: state.key, quantity: String(state.quantity), nonce: state.nonce, token: state.token, request_id: 'c'.repeat(32) });
+            const response = await fetch('/wp-admin/admin-ajax.php', { method: 'POST', credentials: 'same-origin', body });
+            return response.json();
+        }, { productId: String(fixture.product), state: concurrent.latest.body.data });
+        assert.equal(cleanup.success, true, 'cleanup concurrent test cart');
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.goto(`${base}/wp-login.php`, { waitUntil: 'domcontentloaded' });
         await page.locator('#user_login').fill('admin'); await page.locator('#user_pass').fill('test-only');
