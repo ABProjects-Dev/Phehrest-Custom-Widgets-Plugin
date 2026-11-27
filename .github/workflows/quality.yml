@@ -20,6 +20,8 @@ jobs:
       - run: find . -name '*.php' -not -path './node_modules/*' -print0 | xargs -0 -n1 php -l
       - run: php widgets/ajax-smart-add-to-cart/tests/CartServiceTest.php
       - run: php tests/isolation.php
+      - run: php tests/design-system.php
+      - run: php tests/idempotency.php
       - run: npm ci --ignore-scripts && npm test
   woocommerce-smoke:
     runs-on: ubuntu-latest
@@ -38,8 +40,12 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          tools: wp-cli
           extensions: mysqli, curl, mbstring, xml, zip
+      - name: Install WP-CLI from its official build repository
+        run: |
+          curl --retry 3 -fsSL https://github.com/wp-cli/builds/raw/gh-pages/phar/wp-cli.phar -o /tmp/wp
+          chmod +x /tmp/wp
+          echo /tmp >> "$GITHUB_PATH"
       - name: Install disposable WordPress, WooCommerce and Elementor
         run: |
           trap 'echo "::error title=WordPress setup::Failed command: $BASH_COMMAND"' ERR
@@ -78,8 +84,12 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          tools: wp-cli
           extensions: mysqli, curl, mbstring, xml, zip
+      - name: Install WP-CLI from its official build repository
+        run: |
+          curl --retry 3 -fsSL https://github.com/wp-cli/builds/raw/gh-pages/phar/wp-cli.phar -o /tmp/wp
+          chmod +x /tmp/wp
+          echo /tmp >> "$GITHUB_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
@@ -108,7 +118,7 @@ jobs:
           test "$result" = 0
       - name: Upload real screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: pcw-real-browser-screenshots
           path: test-results/screenshots/
