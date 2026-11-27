@@ -28,7 +28,7 @@ jobs:
         run: |
           scripts/package-release.sh "$GITHUB_SHA" /tmp/phehrest-custom-widgets-test.zip
           unzip -tq /tmp/phehrest-custom-widgets-test.zip
-          unzip -p /tmp/phehrest-custom-widgets-test.zip phehrest-custom-widgets/phehrest-custom-widgets.php | grep -F 'Version: 0.3.0'
+          unzip -p /tmp/phehrest-custom-widgets-test.zip phehrest-custom-widgets/phehrest-custom-widgets.php | grep -F 'Version: 0.4.0'
           ! unzip -Z1 /tmp/phehrest-custom-widgets-test.zip | grep -E '(^|/)(node_modules|tests|\.git|\.github)/'
   woocommerce-smoke:
     runs-on: ubuntu-latest
