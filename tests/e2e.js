@@ -26,6 +26,54 @@ fs.mkdirSync(output, { recursive: true });
             throw new Error(`Initial widget not ready: ${await widget.innerText()} | info ${JSON.stringify(info)} | events ${JSON.stringify(diagnostics)}`);
         }
         await out.locator('.pcw-cart__status').waitFor({ state: 'visible' });
+        // Exercise the layout independently of cart requests, with the actual Elementor markup/CSS.
+        // The invisible add button remains the size anchor in both counter states.
+        for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+            await page.setViewportSize(viewport);
+            for (const direction of ['rtl', 'ltr']) {
+                for (const text of ['خرید', 'افزودن این محصول فوق العاده طولانی به سبد خرید برای آزمایش واکنش گرایی']) {
+                    for (const position of ['right', 'left']) {
+                        const result = await widget.evaluate((root, config) => {
+                            document.documentElement.dir = config.direction;
+                            const add = root.querySelector('.pcw-cart__add');
+                            const label = add.querySelector('.pcw-cart__label');
+                            const icon = add.querySelector('.pcw-cart__icon');
+                            const counter = root.querySelector('.pcw-cart__counter');
+                            label.textContent = config.text;
+                            add.classList.toggle('pcw-cart__add--icon-right', config.position === 'right');
+                            add.classList.toggle('pcw-cart__add--icon-left', config.position === 'left');
+                            root.style.setProperty('--pcw-add-min-width', '130px');
+                            root.style.setProperty('--pcw-add-icon-size', '22px');
+                            const before = add.getBoundingClientRect();
+                            const labelRect = label.getBoundingClientRect();
+                            const iconRect = icon.getBoundingClientRect();
+                            add.hidden = true;
+                            counter.hidden = false;
+                            root.classList.add('pcw-cart--one');
+                            const one = counter.getBoundingClientRect();
+                            root.classList.remove('pcw-cart--one');
+                            const multiple = counter.getBoundingClientRect();
+                            add.hidden = false;
+                            counter.hidden = true;
+                            return { width: before.width, height: before.height, iconX: iconRect.x, labelX: labelRect.x, one: { width: one.width, height: one.height }, multiple: { width: multiple.width, height: multiple.height }, anchorHidden: !add.hidden };
+                        }, { direction, text, position });
+                        assert(result.width >= 129, 'minimum width applies');
+                        assert(position === 'right' ? result.iconX > result.labelX : result.iconX < result.labelX, `physical icon position ${position} in ${direction}`);
+                        for (const state of [result.one, result.multiple]) {
+                            assert(Math.abs(result.width - state.width) < 0.1 && Math.abs(result.height - state.height) < 0.1, `counter matches add button at ${viewport.width}px: ${JSON.stringify(result)}`);
+                        }
+                    }
+                }
+            }
+        }
+        await widget.evaluate(root => {
+            root.querySelector('.pcw-cart__label').textContent = 'افزودن به سبد خرید';
+            root.querySelector('.pcw-cart__add').classList.replace('pcw-cart__add--icon-left', 'pcw-cart__add--icon-right');
+            root.style.removeProperty('--pcw-add-min-width');
+            root.style.removeProperty('--pcw-add-icon-size');
+            document.documentElement.dir = 'rtl';
+        });
+        await page.setViewportSize({ width: 1440, height: 900 });
         assert.equal(await page.locator('html').getAttribute('dir'), 'rtl', 'Persian site renders RTL');
         assert.equal(await out.locator('.pcw-cart__add').isDisabled(), true, 'out-of-stock is disabled');
         await page.screenshot({ path: `${output}/01-desktop-empty-rtl.png`, fullPage: true });
