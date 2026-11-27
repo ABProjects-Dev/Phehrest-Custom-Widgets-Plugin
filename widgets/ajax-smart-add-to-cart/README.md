@@ -8,6 +8,10 @@ State is fetched without caching; mutations require a WP nonce, a session-bound 
 
 **Limits:** the standard WooCommerce session handler and MySQL advisory locks are required; unsupported session handlers or unavailable locks cause widget mutations to fail closed. Other plugins do not participate in this lock. Independent database nodes, arbitrary third-party concurrent cart mutations and all infrastructure failures cannot be guaranteed. The default WooCommerce fragment events are used where available; theme-specific headers and mini carts may require additional integration. Do not publicly cache AJAX responses.
 
+Confirmed session-lock contention is silent: the rejected mutation is not automatically retried or applied optimistically, and the widget refreshes from the server. If the refresh also stays busy, the last confirmed display is retained, controls are disabled and a retry button is shown; without an earlier confirmed state no quantity is guessed. Network, unavailable database locks and other errors remain visible.
+
+Initial rendering waits for an uncached WooCommerce session/cart state request rather than guessing the count. Reads in the same page are serialized, so multiple widgets, slow servers or networks and contention retries can add latency. Obsolete queued reads are skipped; cross-tab and infrastructure delays can still occur.
+
 The CI runs isolated tests, disposable-site WooCommerce/non-invasive tests, and real Chromium Elementor tests with screenshot artifacts. See the root README for the exact matrix. Elementor Pro, custom themes, custom product extensions, exhaustive accessibility and multi-node environments remain untested; this is not a production-stability claim.
 
 ## Button and counter styling

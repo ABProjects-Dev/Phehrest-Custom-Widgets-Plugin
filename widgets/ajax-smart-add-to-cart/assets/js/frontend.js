@@ -29,7 +29,7 @@
             .then(async response => {
                 let json;
                 try { json = await response.json(); } catch (_) { throw new Error(messages.network); }
-                if (!response.ok || !json.success) { const error = new Error(json.data?.message || messages.network); error.status = response.status; throw error; }
+                if (!response.ok || !json.success) { const error = new Error(json.data?.message || messages.network); error.status = response.status; error.code = json.data?.code; throw error; }
                 return json.data;
             });
     }
@@ -84,25 +84,32 @@
         }
         try {
             const pending = stateQueue.then(async () => {
+                // Do not send obsolete queued reads after another update or a mutation starts.
+                if (generation !== widget.pcwGeneration || changing || !widget.isConnected) return null;
                 for (let attempt = 0; ; attempt++) {
                     try { return await request('pcw_cart_state', widget, variation); }
                     catch (error) {
-                        if (error.status !== 409 || attempt >= 3) throw error;
+                        if (error.status !== 409 || error.code !== 'pcw_cart_busy' || attempt >= 3) throw error;
                         await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+                        if (generation !== widget.pcwGeneration || changing || !widget.isConnected) return null;
                     }
                 }
             });
             stateQueue = pending.catch(() => {});
             const state = await pending;
-            if (generation !== widget.pcwGeneration || changing) return;
+            if (!state || generation !== widget.pcwGeneration || changing) return;
             widget.pcwState = state;
             widget.pcwVariation = variation;
             draw(widget, state);
         } catch (error) {
             if (generation !== widget.pcwGeneration) return;
+            const busy = error.status === 409 && error.code === 'pcw_cart_busy';
+            const sameVariation = widget.pcwVariation && JSON.stringify(variation) === JSON.stringify(widget.pcwVariation);
+            // Preserve only a previously confirmed display; never allow mutations on stale state.
+            if (!busy || !sameVariation) widget.querySelector('.pcw-cart__control').hidden = true;
             widget.pcwState = null;
-            widget.querySelector('.pcw-cart__control').hidden = true;
-            widget.querySelector('.pcw-cart__status').textContent = error.message;
+            widget.querySelectorAll('.pcw-cart__control button').forEach(button => { button.disabled = true; });
+            widget.querySelector('.pcw-cart__status').textContent = busy ? '' : error.message;
             widget.querySelector('.pcw-cart__retry').hidden = false;
         }
     }
@@ -115,6 +122,8 @@
         widgets.forEach(other => { other.pcwGeneration++; setBusy(other, true); });
         let errorMessage = '';
         try {
+            // Let any already-running read finish before attempting a cart change.
+            await stateQueue;
             const state = widget.pcwState;
             const random = new Uint8Array(16);
             window.crypto.getRandomValues(random);
@@ -132,7 +141,7 @@
                 if (result.replayed || button.dataset.operation === 'increase' || button.dataset.operation === 'decrease') body.trigger('wc_fragment_refresh');
             }
             document.dispatchEvent(new CustomEvent('pcw:cart-changed'));
-        } catch (error) { errorMessage = error.message; }
+        } catch (error) { if (error.status !== 409 || error.code !== 'pcw_cart_busy') errorMessage = error.message; }
         finally {
             changing = false;
             widgets.forEach(other => setBusy(other, false));

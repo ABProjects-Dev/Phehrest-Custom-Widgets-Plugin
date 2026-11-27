@@ -121,3 +121,102 @@ test('suppresses view-cart links only in this widget and retains WooCommerce eve
     assert.ok(doc.querySelector('#other-view-cart'));
     dom.window.close();
 });
+
+test('busy change is silent, does not change quantity or emit a cart event, and refreshes state', async () => {
+    let changes = 0, reads = 0, events = 0;
+    const dom = fixture(async (_, options) => {
+        if (options.body.get('action') === 'pcw_cart_change') {
+            changes++;
+            return { ok: false, status: 409, json: async () => ({ success: false, data: { code: 'pcw_cart_busy', message: 'Lock busy' } }) };
+        }
+        reads++;
+        return { ok: true, json: async () => ({ success: true, data: { quantity: 2, key: 'key', nonce: 'n', token: 't', purchasable: true } }) };
+    }, window => window.document.addEventListener('pcw:cart-changed', () => events++));
+    await tick();
+    const doc = dom.window.document;
+    doc.querySelector('.pcw-cart__up').click();
+    await tick(); await tick();
+    assert.equal(changes, 1, 'a rejected mutation is not automatically retried');
+    assert(reads >= 2, 'state is refreshed from server');
+    assert.equal(events, 0);
+    assert.equal(doc.querySelector('.pcw-cart__quantity').textContent, '2');
+    assert.equal(doc.querySelector('.pcw-cart__status').textContent, '');
+    assert.equal(doc.querySelector('.pcw-cart__retry').hidden, true);
+    dom.window.close();
+});
+
+test('busy state read keeps confirmed display without error, disables stale actions, and can recover', async () => {
+    let busy = false, reads = 0;
+    const dom = fixture(async () => {
+        reads++;
+        if (busy) return { ok: false, status: 409, json: async () => ({ success: false, data: { code: 'pcw_cart_busy', message: 'Lock busy' } }) };
+        return { ok: true, json: async () => ({ success: true, data: { quantity: 2, key: 'key', nonce: 'n', token: 't', purchasable: true } }) };
+    }, window => {
+        const original = window.setTimeout.bind(window);
+        window.setTimeout = (callback, ms, ...args) => original(callback, ms >= 250 ? 0 : ms, ...args);
+    });
+    await tick();
+    const doc = dom.window.document;
+    busy = true; dom.window.dispatchEvent(new dom.window.Event('focus')); await tick(); await tick();
+    assert.equal(reads, 5, 'busy read is tried at most four times');
+    assert.equal(doc.querySelector('.pcw-cart__control').hidden, false);
+    assert.equal(doc.querySelector('.pcw-cart__quantity').textContent, '2');
+    assert.equal(doc.querySelector('.pcw-cart__up').disabled, true);
+    assert.equal(doc.querySelector('.pcw-cart__status').textContent, '');
+    assert.equal(doc.querySelector('.pcw-cart__retry').hidden, false);
+    busy = false; doc.querySelector('.pcw-cart__retry').click(); await tick();
+    assert.equal(doc.querySelector('.pcw-cart__up').disabled, false);
+    assert.equal(doc.querySelector('.pcw-cart__retry').hidden, true);
+    dom.window.close();
+});
+
+test('initial busy read does not invent a cart state and other 409 errors remain visible', async () => {
+    let busy = true;
+    const dom = fixture(async () => ({ ok: false, status: 409, json: async () => ({ success: false, data: { code: busy ? 'pcw_cart_busy' : 'other_error', message: busy ? 'Lock busy' : 'Other error' } }) }), window => {
+        const original = window.setTimeout.bind(window);
+        window.setTimeout = (callback, ms, ...args) => original(callback, ms >= 250 ? 0 : ms, ...args);
+    });
+    await tick(); await tick();
+    const doc = dom.window.document;
+    assert.equal(doc.querySelector('.pcw-cart__control').hidden, true);
+    assert.equal(doc.querySelector('.pcw-cart__status').textContent, '');
+    assert.equal(doc.querySelector('.pcw-cart__retry').hidden, false);
+    busy = false; doc.querySelector('.pcw-cart__retry').click(); await tick();
+    assert.equal(doc.querySelector('.pcw-cart__status').textContent, 'Other error');
+    dom.window.close();
+});
+
+test('mutation waits for the active state read and obsolete queued reads are skipped', async () => {
+    let reads = 0, changes = 0, release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const dom = fixture(async (_, options) => {
+        if (options.body.get('action') === 'pcw_cart_change') {
+            changes++;
+            return { ok: true, json: async () => ({ success: true, data: { fragments: {}, cart_hash: 'x' } }) };
+        }
+        reads++;
+        if (reads === 2) await gate;
+        return { ok: true, json: async () => ({ success: true, data: { quantity: 2, key: 'key', nonce: 'n', token: 't', purchasable: true } }) };
+    });
+    await tick();
+    const doc = dom.window.document;
+    dom.window.dispatchEvent(new dom.window.Event('focus')); await tick();
+    dom.window.dispatchEvent(new dom.window.Event('focus'));
+    doc.querySelector('.pcw-cart__up').click(); await tick();
+    assert.equal(changes, 0, 'mutation does not race the active read');
+    assert.equal(reads, 2);
+    release(); await tick(); await tick();
+    assert.equal(changes, 1);
+    assert.equal(reads, 3, 'queued stale read skipped, then fresh post-mutation read sent');
+    dom.window.close();
+});
+
+test('unavailable lock service is reported rather than silently treated as contention', async () => {
+    const dom = fixture(async () => ({ ok: false, status: 503, json: async () => ({ success: false, data: { code: 'pcw_lock_unavailable', message: 'Lock unavailable' } }) }));
+    await tick();
+    const doc = dom.window.document;
+    assert.equal(doc.querySelector('.pcw-cart__control').hidden, true);
+    assert.equal(doc.querySelector('.pcw-cart__status').textContent, 'Lock unavailable');
+    assert.equal(doc.querySelector('.pcw-cart__retry').hidden, false);
+    dom.window.close();
+});

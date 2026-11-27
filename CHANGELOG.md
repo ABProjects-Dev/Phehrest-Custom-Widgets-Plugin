@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Quietly handle confirmed cart-lock contention without optimistic quantity changes; preserve other errors and skip obsolete queued reads.
+
 ## 0.3.0 — 2026-11-27
 
 - Center the quantity between edge-aligned icon buttons with 20px icons and 10px button padding; reserve space to prevent overlapping the quantity.

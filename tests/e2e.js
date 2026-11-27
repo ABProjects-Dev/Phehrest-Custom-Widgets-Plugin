@@ -182,6 +182,25 @@ fs.mkdirSync(output, { recursive: true });
         const twoBox = await widget.locator('.pcw-cart__counter').boundingBox();
         assert(Math.abs(initialBox.width - twoBox.width) < 0.1 && Math.abs(initialBox.height - twoBox.height) < 0.1, 'actual cart state two retains button size');
         await page.screenshot({ path: `${output}/05-two.png`, fullPage: true });
+        await page.waitForFunction(product => { const root = document.querySelector(`.pcw-cart[data-product-id="${product}"]`); return root.getAttribute('aria-busy') === 'false' && root.querySelector('.pcw-cart__status').textContent === ''; }, fixture.product);
+        // Simulate a definitive lock rejection before a mutation reaches WooCommerce.
+        await page.unroute('**/wp-admin/admin-ajax.php');
+        let busyChanges = 0;
+        await page.route('**/wp-admin/admin-ajax.php', async route => {
+            if ((route.request().postData() || '').includes('action=pcw_cart_change')) {
+                busyChanges++;
+                await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ success: false, data: { code: 'pcw_cart_busy', message: 'درخواست دیگری در حال اجراست؛ کمی صبر کنید و دوباره تلاش کنید.' } }) });
+            } else await route.continue();
+        });
+        await widget.locator('.pcw-cart__up').click();
+        await page.waitForFunction(product => {
+            const root = document.querySelector(`.pcw-cart[data-product-id="${product}"]`);
+            return root.getAttribute('aria-busy') === 'false' && root.querySelector('.pcw-cart__status').textContent === '';
+        }, fixture.product);
+        assert.equal(busyChanges, 1, 'busy mutation is not retried');
+        assert.equal(await widget.locator('.pcw-cart__quantity').textContent(), '2', 'rejected mutation keeps authoritative quantity');
+        assert.equal(await widget.locator('.pcw-cart__retry').isHidden(), true, 'no busy error or retry prompt after successful resync');
+        await page.unroute('**/wp-admin/admin-ajax.php');
         await page.setViewportSize({ width: 390, height: 844 });
         await page.screenshot({ path: `${output}/06-mobile.png`, fullPage: true });
         await page.setViewportSize({ width: 768, height: 1024 });
@@ -233,6 +252,7 @@ fs.mkdirSync(output, { recursive: true });
             return { attempts, replay, latest };
         }, String(fixture.product));
         assert(concurrent.attempts.some(x => x.body.success), 'one concurrent request succeeds');
+        for (const attempt of concurrent.attempts.filter(x => x.status === 409)) assert.equal(attempt.body.data.code, 'pcw_cart_busy', 'lock contention is identified before cart mutation');
         assert.equal(concurrent.replay.body.data.replayed, true, 'identical retry replays without mutation');
         assert.equal(concurrent.latest.body.data.quantity, 1, 'concurrent requests do not duplicate product');
         const cleanup = await page.evaluate(async ({ productId, state }) => {

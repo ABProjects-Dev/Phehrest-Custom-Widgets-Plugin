@@ -19,7 +19,7 @@ For concurrency and idempotency prerequisites and limits, read the widget guide.
 ```sh
 find . -name '*.php' -not -path './node_modules/*' -print0 | xargs -0 -n1 php -l
 php widgets/ajax-smart-add-to-cart/tests/CartServiceTest.php
-php tests/isolation.php && php tests/design-system.php && php tests/idempotency.php
+php tests/isolation.php && php tests/design-system.php && php tests/idempotency.php && php tests/mutation-guard.php
 npm ci && npm test
 # These must only run against a disposable WP-CLI installation:
 PCW_TEST_ENV=1 wp eval-file tests/integration.php
