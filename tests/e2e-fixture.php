@@ -17,6 +17,7 @@ $elements = [[
             ['id' => 'pcwtitle', 'elType' => 'widget', 'widgetType' => 'heading', 'settings' => ['title' => 'تجربه خرید آسان'], 'elements' => []],
             $widget('pcwmain1', $productId),
             ['id' => 'pcwmini1', 'elType' => 'widget', 'widgetType' => 'shortcode', 'settings' => ['shortcode' => '[pcw_test_mini_cart]'], 'elements' => []],
+            ['id' => 'pcwstd01', 'elType' => 'widget', 'widgetType' => 'shortcode', 'settings' => ['shortcode' => '[pcw_test_standard_button product="' . $productId . '"]'], 'elements' => []],
             $widget('pcwout01', $outId),
         ],
     ]],

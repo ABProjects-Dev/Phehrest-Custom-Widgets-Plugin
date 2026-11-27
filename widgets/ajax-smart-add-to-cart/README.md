@@ -1,6 +1,6 @@
 # AJAX Smart Add to Cart
 
-Experimental Elementor widget for one WooCommerce cart line. Zero shows add; one shows remove, quantity and plus; higher quantities show minus, quantity and plus. WooCommerce remains the source of truth for the cart, prices and totals.
+Experimental Elementor widget for one WooCommerce cart line. Zero shows add; one shows remove, quantity and plus; higher quantities show minus, quantity and plus. WooCommerce remains the source of truth for the cart, prices and totals. The standard view-cart link is suppressed inside this widget only; other WooCommerce buttons retain their normal behavior.
 
 Enable the widget in the plugin dashboard, add it to Elementor and choose the current product or an explicit product, by ID or editor search. Variable products require exactly one matching standard WooCommerce variation form on the page with all attributes selected. External/grouped products, ambiguous matching cart lines, fractional quantities and non-unit steps are not supported.
 

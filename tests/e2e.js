@@ -46,6 +46,7 @@ fs.mkdirSync(output, { recursive: true });
         await page.waitForFunction(product => document.querySelector(`.pcw-cart[data-product-id="${product}"] .pcw-cart__quantity`)?.textContent === '1', fixture.product);
         await page.waitForFunction(product => document.querySelector(`.pcw-cart[data-product-id="${product}"]`).getAttribute('aria-busy') === 'false', fixture.product);
         await page.locator('.widget_shopping_cart_content').getByText('محصول آزمایشی فهرست', { exact: false }).first().waitFor();
+        assert.equal(await widget.locator('a.added_to_cart').count(), 0, 'widget does not display WooCommerce view-cart link');
         await page.screenshot({ path: `${output}/04-one.png`, fullPage: true });
         await widget.locator('.pcw-cart__up').click();
         await page.waitForFunction(product => document.querySelector(`.pcw-cart[data-product-id="${product}"] .pcw-cart__quantity`)?.textContent === '2', fixture.product);
@@ -60,6 +61,15 @@ fs.mkdirSync(output, { recursive: true });
         await widget.locator('.pcw-cart__down').click();
         await widget.locator('.pcw-cart__add').waitFor({ state: 'visible' });
         await page.locator('.widget_shopping_cart_content').getByText('محصول آزمایشی فهرست', { exact: false }).first().waitFor({ state: 'hidden' });
+        assert.equal(await widget.locator('a.added_to_cart').count(), 0, 'widget does not leave a stale view-cart link after removal');
+        // A standard WooCommerce button keeps its original behavior outside the widget.
+        await page.locator('.pcw-test-standard .add_to_cart_button').click();
+        await page.locator('.pcw-test-standard a.added_to_cart').waitFor({ state: 'visible' });
+        await page.waitForFunction(product => document.querySelector(`.pcw-cart[data-product-id="${product}"] .pcw-cart__quantity`)?.textContent === '1', fixture.product);
+        assert.equal(await widget.locator('a.added_to_cart').count(), 0, 'standard button event does not add a link inside widget');
+        await widget.locator('.pcw-cart__down').click();
+        await widget.locator('.pcw-cart__add').waitFor({ state: 'visible' });
+        assert.equal(await page.locator('.pcw-test-standard a.added_to_cart').count(), 1, 'other button view-cart link is preserved');
         await page.unroute('**/wp-admin/admin-ajax.php');
         await page.route('**/wp-admin/admin-ajax.php', async route => {
             if ((route.request().postData() || '').includes('action=pcw_cart_change')) await route.abort();
