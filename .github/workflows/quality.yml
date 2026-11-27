@@ -51,3 +51,52 @@ jobs:
           wp plugin activate phehrest-custom-widgets --path=/tmp/pcw-wp
       - name: Exercise WooCommerce cart APIs on the disposable site
         run: PCW_TEST_ENV=1 wp eval-file "$GITHUB_WORKSPACE/tests/integration.php" --path=/tmp/pcw-wp
+
+  browser:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pcw_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: wp-cli
+          extensions: mysqli, curl, mbstring, xml, zip
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --ignore-scripts && npx playwright install --with-deps chromium
+      - name: Create disposable WordPress site
+        run: |
+          mkdir -p /tmp/pcw-wp
+          wp core download --path=/tmp/pcw-wp --quiet
+          wp config create --path=/tmp/pcw-wp --dbname=pcw_test --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --path=/tmp/pcw-wp --url=http://127.0.0.1:8080 --title=PCW-test --admin_user=admin --admin_password=test-only --admin_email=test@example.test --skip-email
+          wp language core install fa_IR --activate --path=/tmp/pcw-wp
+          wp plugin install woocommerce elementor --activate --path=/tmp/pcw-wp
+          ln -s "$GITHUB_WORKSPACE" /tmp/pcw-wp/wp-content/plugins/phehrest-custom-widgets
+          wp plugin activate phehrest-custom-widgets --path=/tmp/pcw-wp
+          mkdir -p /tmp/pcw-wp/wp-content/mu-plugins
+          cp tests/e2e-mu-plugin.php /tmp/pcw-wp/wp-content/mu-plugins/pcw-fixture.php
+          PCW_TEST_ENV=1 wp eval-file "$GITHUB_WORKSPACE/tests/e2e-fixture.php" --path=/tmp/pcw-wp
+          wp server --host=127.0.0.1 --port=8080 --path=/tmp/pcw-wp > /tmp/pcw-server.log 2>&1 &
+      - name: Exercise real Elementor pages and capture screenshots
+        run: npm run test:e2e
+      - name: Upload real screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pcw-real-browser-screenshots
+          path: test-results/screenshots/
+          if-no-files-found: warn
+          retention-days: 30
