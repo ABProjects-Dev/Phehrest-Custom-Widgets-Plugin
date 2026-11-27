@@ -1,16 +1,16 @@
 .pcw-cart {
-    --pcw-bg: var(--pcw-default-bg, #5060db);
-    --pcw-text: var(--pcw-default-text, #fff);
-    --pcw-counter-bg: var(--pcw-default-counter-bg, #f3f5ff);
-    --pcw-border: var(--pcw-default-border, #dfe4f1);
+    --pcw-bg: #5060db;
+    --pcw-text: #fff;
+    --pcw-counter-bg: #f3f5ff;
+    --pcw-border: #dfe4f1;
     --pcw-hover: #3d4ec4;
-    --pcw-plus: var(--pcw-default-plus, #4d5ed2);
-    --pcw-minus: var(--pcw-default-minus, #263650);
-    --pcw-remove: var(--pcw-default-remove, #d04b5a);
+    --pcw-plus: #4d5ed2;
+    --pcw-minus: #263650;
+    --pcw-remove: #d04b5a;
     display: inline-block;
     width: max-content;
     max-width: 100%;
-    font-family: var(--pcw-default-font, inherit);
+    font-family: inherit;
 }
 .pcw-cart [hidden], .pcw-cart[hidden] { display: none !important; }
 .pcw-cart__control {
@@ -36,7 +36,7 @@
     min-height: 0;
     padding: 12px 18px;
     border-color: transparent;
-    border-radius: var(--pcw-add-radius, var(--pcw-default-radius, 14px));
+    border-radius: var(--pcw-add-radius, 14px);
     background: var(--pcw-bg);
     color: var(--pcw-text);
     font: inherit;
@@ -61,7 +61,7 @@
     min-width: 0;
     gap: var(--pcw-counter-gap, 0px);
     padding: 0;
-    border-radius: var(--pcw-counter-radius, var(--pcw-default-radius, 14px));
+    border-radius: var(--pcw-counter-radius, 14px);
     background: var(--pcw-counter-bg);
 }
 .pcw-cart__step {
@@ -76,7 +76,7 @@
     margin: 0;
     padding: 10px;
     border: 0 solid transparent;
-    border-radius: max(0px, calc(var(--pcw-counter-radius, var(--pcw-default-radius, 14px)) - 4px));
+    border-radius: max(0px, calc(var(--pcw-counter-radius, 14px) - 4px));
     background: transparent;
     color: var(--pcw-minus);
     cursor: pointer;

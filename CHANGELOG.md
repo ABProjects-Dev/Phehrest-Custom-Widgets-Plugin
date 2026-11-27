@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add per-widget error visibility, remove the shared design feature, and show collapsible widget cards in a dashboard carousel. Legacy shared-design values remain stored but no longer apply.
+
 - Quietly handle confirmed cart-lock contention without optimistic quantity changes; preserve other errors and skip obsolete queued reads.
 
 ## 0.3.0 — 2026-11-27

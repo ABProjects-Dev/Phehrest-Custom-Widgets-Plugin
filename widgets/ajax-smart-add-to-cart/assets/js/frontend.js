@@ -5,6 +5,7 @@
     let changing = false;
     let stateQueue = Promise.resolve();
     const messages = pcwSmartCart.messages;
+    const showErrors = widget => widget.dataset.showErrors !== '0';
 
     function formData(widget) {
         if (widget.dataset.variable !== '1') return { variation_id: '0', attributes: {} };
@@ -67,7 +68,7 @@
         down.setAttribute('aria-label', count === 1 ? messages.remove : messages.decrease);
         widget.querySelector('.pcw-cart__quantity').textContent = String(count);
         widget.querySelector('.pcw-cart__quantity').setAttribute('aria-label', `${messages.quantity} ${count}`);
-        status.textContent = !state.purchasable && !count ? messages.unavailable : '';
+        status.textContent = showErrors(widget) && !state.purchasable && !count ? messages.unavailable : '';
         widget.hidden = !state.purchasable && !count && widget.dataset.outOfStock === 'hide';
     }
     async function sync(widget) {
@@ -78,7 +79,7 @@
             widget.pcwState = null;
             widget.hidden = false;
             widget.querySelector('.pcw-cart__control').hidden = true;
-            widget.querySelector('.pcw-cart__status').textContent = messages.choose;
+            widget.querySelector('.pcw-cart__status').textContent = showErrors(widget) ? messages.choose : '';
             widget.querySelector('.pcw-cart__retry').hidden = false;
             return;
         }
@@ -106,10 +107,10 @@
             const busy = error.status === 409 && error.code === 'pcw_cart_busy';
             const sameVariation = widget.pcwVariation && JSON.stringify(variation) === JSON.stringify(widget.pcwVariation);
             // Preserve only a previously confirmed display; never allow mutations on stale state.
-            if (!busy || !sameVariation) widget.querySelector('.pcw-cart__control').hidden = true;
+            if ((!busy && showErrors(widget)) || !sameVariation) widget.querySelector('.pcw-cart__control').hidden = true;
             widget.pcwState = null;
             widget.querySelectorAll('.pcw-cart__control button').forEach(button => { button.disabled = true; });
-            widget.querySelector('.pcw-cart__status').textContent = busy ? '' : error.message;
+            widget.querySelector('.pcw-cart__status').textContent = busy || !showErrors(widget) ? '' : error.message;
             widget.querySelector('.pcw-cart__retry').hidden = false;
         }
     }
@@ -146,7 +147,7 @@
             changing = false;
             widgets.forEach(other => setBusy(other, false));
             await syncAll();
-            if (errorMessage && widget.isConnected) { widget.querySelector('.pcw-cart__status').textContent = errorMessage; widget.querySelector('.pcw-cart__retry').hidden = false; }
+            if (errorMessage && widget.isConnected) { widget.querySelector('.pcw-cart__status').textContent = showErrors(widget) ? errorMessage : ''; widget.querySelector('.pcw-cart__retry').hidden = false; }
         }
     }
     function init(root = document) {

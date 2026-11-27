@@ -20,6 +20,7 @@ fs.mkdirSync(output, { recursive: true });
         await page.goto(`${base}/?page_id=${fixture.page}`, { waitUntil: 'domcontentloaded' });
         const widget = page.locator(`.pcw-cart[data-product-id="${fixture.product}"]`);
         const out = page.locator(`.pcw-cart[data-product-id="${fixture.out}"]`);
+        const silent = page.locator(`.pcw-cart[data-product-id="${fixture.silent}"]`);
         try { await widget.locator('.pcw-cart__add').waitFor({ state: 'visible', timeout: 30000 }); }
         catch (error) {
             const info = await page.evaluate(() => ({ ready: document.readyState, config: typeof pcwSmartCart, scripts: [...document.scripts].map(s => s.src).filter(s => s.includes('phehrest')) }));
@@ -229,6 +230,24 @@ fs.mkdirSync(output, { recursive: true });
         await widget.locator('.pcw-cart__retry').waitFor({ state: 'visible' });
         await page.screenshot({ path: `${output}/07-simulated-network-error.png`, fullPage: true });
         await page.unroute('**/wp-admin/admin-ajax.php');
+        // A separate widget with error display disabled hides its own failures only.
+        await silent.locator('.pcw-cart__add').waitFor({ state: 'visible' });
+        assert.equal(await silent.getAttribute('data-show-errors'), '0');
+        assert.equal(await widget.getAttribute('data-show-errors'), '1', 'errors are enabled by default on existing widgets');
+        assert.equal(await page.locator('.elementor-element-pcwinv01 .pcw-cart__notice').count(), 0, 'invalid product notice is suppressed when disabled');
+        await page.route('**/wp-admin/admin-ajax.php', async route => {
+            const body = route.request().postData() || '';
+            if (body.includes('action=pcw_cart_change') && body.includes(`product_id=${fixture.silent}`)) {
+                await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ success: false, data: { message: 'VISIBLE TEST ERROR' } }) });
+            } else await route.continue();
+        });
+        await silent.locator('.pcw-cart__add').click();
+        await silent.locator('.pcw-cart__retry').waitFor({ state: 'visible' });
+        assert.equal(await silent.locator('.pcw-cart__status').textContent(), '');
+        assert.equal(await silent.locator('.pcw-cart__add').isVisible(), true, 'failed action does not invent a new state');
+        await page.unroute('**/wp-admin/admin-ajax.php');
+        await silent.locator('.pcw-cart__retry').click();
+        await silent.locator('.pcw-cart__retry').waitFor({ state: 'hidden' });
         // Invalid CSRF credentials cannot alter a guest cart.
         const csrf = await page.evaluate(async productId => {
             const body = new URLSearchParams({ action: 'pcw_cart_change', product_id: productId, variation_id: '0', operation: 'add', quantity: '0', key: '', nonce: 'invalid', token: 'invalid', request_id: 'b'.repeat(32) });
@@ -285,15 +304,38 @@ fs.mkdirSync(output, { recursive: true });
         await searchResult.click();
         assert.equal(await page.locator('.elementor-control-product_id input[data-setting="product_id"]').inputValue(), String(fixture.product), 'product search selects the product');
         await page.screenshot({ path: `${output}/08-elementor-editor.png`, fullPage: true });
+        assert.equal(await page.locator('.elementor-control-show_errors').count(), 1, 'error visibility control appears in editor');
         await page.goto(`${base}/wp-admin/admin.php?page=pcw-widgets`, { waitUntil: 'domcontentloaded' });
-        await page.locator('input[name="design[primary]"]').fill('#123456');
-        await page.locator('.pcw-admin__design input[type="submit"]').click();
+        assert.equal(await page.locator('.pcw-admin__design, input[name="design[primary]"]').count(), 0, 'shared design section is removed');
+        const cards = page.locator('.pcw-carousel__track .pcw-card');
+        assert.equal(await cards.count(), 4, 'carousel includes real and test-only widget cards');
+        assert.equal(await page.locator('.pcw-card__details[open]').count(), 0, 'all cards are collapsed initially');
+        const mainCard = cards.first();
+        assert.equal(await mainCard.locator('.pcw-card__body').isVisible(), false, 'collapsed card details are hidden');
+        assert.equal(await mainCard.locator('.pcw-card__toggle input').isChecked(), true, 'active widget state is visible while collapsed');
+        await mainCard.locator('summary').focus();
+        await page.keyboard.press('Enter');
+        assert.equal(await mainCard.locator('.pcw-card__body').isVisible(), true, 'keyboard opens details');
+        await page.screenshot({ path: `${output}/09-dashboard-open.png`, fullPage: true });
+        await mainCard.locator('summary').click();
+        assert.equal(await mainCard.locator('.pcw-card__body').isVisible(), false, 'details can be closed');
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.locator('.pcw-carousel__next').click();
+        await page.waitForFunction(() => Math.abs(document.querySelector('.pcw-carousel__track').scrollLeft) > 1);
+        await page.screenshot({ path: `${output}/10-dashboard-mobile.png`, fullPage: true });
+        await mainCard.locator('.pcw-card__toggle input').uncheck();
+        await page.locator('input[type="submit"][name="submit"]').click();
         await page.waitForURL(/updated=1/);
-        await page.screenshot({ path: `${output}/09-design-settings.png`, fullPage: true });
+        assert.equal(await page.locator('.pcw-card__toggle input').first().isChecked(), false, 'deactivation persists');
+        await page.locator('.pcw-card__toggle input').first().check();
+        await page.locator('input[type="submit"][name="submit"]').click();
+        await page.waitForURL(/updated=1/);
+        assert.equal(await page.locator('.pcw-card__toggle input').first().isChecked(), true, 'activation persists');
+        await page.setViewportSize({ width: 1440, height: 900 });
         await page.goto(`${base}/?page_id=${fixture.page}`, { waitUntil: 'domcontentloaded' });
         const add = page.locator(`.pcw-cart[data-product-id="${fixture.product}"] .pcw-cart__add`);
         await add.waitFor({ state: 'visible' });
-        assert.equal(await add.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(18, 52, 86)', 'design defaults apply inside widget');
+        assert.equal(await add.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(80, 96, 219)', 'legacy dashboard design settings no longer affect widgets');
         console.log('PASS: Real Elementor frontend, RTL, cart transitions, mobile, loading, error, unavailable product and editor.');
     } catch (error) {
         await page.screenshot({ path: `${output}/failure.png`, fullPage: true }).catch(() => {});

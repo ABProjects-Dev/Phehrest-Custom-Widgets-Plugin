@@ -220,3 +220,49 @@ test('unavailable lock service is reported rather than silently treated as conte
     assert.equal(doc.querySelector('.pcw-cart__retry').hidden, false);
     dom.window.close();
 });
+
+test('disabled error display suppresses state and mutation errors without inventing cart changes', async () => {
+    let mode = 'ok';
+    const dom = fixture(async (_, options) => {
+        if (options.body.get('action') === 'pcw_cart_change') return { ok: false, status: 400, json: async () => ({ success: false, data: { message: 'Mutation failed' } }) };
+        if (mode === 'read-error') return { ok: false, status: 503, json: async () => ({ success: false, data: { message: 'Server unavailable' } }) };
+        return { ok: true, json: async () => ({ success: true, data: { quantity: 2, key: 'key', nonce: 'n', token: 't', purchasable: true } }) };
+    }, window => { window.document.querySelector('.pcw-cart').dataset.showErrors = '0'; });
+    await tick();
+    const doc = dom.window.document;
+    doc.querySelector('.pcw-cart__up').click(); await tick(); await tick();
+    assert.equal(doc.querySelector('.pcw-cart__quantity').textContent, '2');
+    assert.equal(doc.querySelector('.pcw-cart__status').textContent, '');
+    assert.equal(doc.querySelector('.pcw-cart__retry').hidden, false);
+    mode = 'read-error'; dom.window.dispatchEvent(new dom.window.Event('focus')); await tick();
+    assert.equal(doc.querySelector('.pcw-cart__status').textContent, '');
+    assert.equal(doc.querySelector('.pcw-cart__quantity').textContent, '2');
+    assert.equal(doc.querySelector('.pcw-cart__control').hidden, false);
+    assert.equal(doc.querySelector('.pcw-cart__up').disabled, true);
+    mode = 'ok'; doc.querySelector('.pcw-cart__retry').click(); await tick();
+    assert.equal(doc.querySelector('.pcw-cart__up').disabled, false);
+    dom.window.close();
+});
+
+test('disabled errors hide initial errors, unavailable and variation notices only for that widget', async () => {
+    let mode = 'error';
+    const dom = fixture(async () => {
+        if (mode === 'error') throw new Error('offline');
+        return { ok: true, json: async () => ({ success: true, data: { quantity: 0, purchasable: false, soldIndividually: false } }) };
+    }, window => {
+        window.document.querySelector('.pcw-cart').dataset.showErrors = '0';
+        window.pcwSmartCart.messages.unavailable = 'Unavailable';
+    });
+    await tick();
+    const doc = dom.window.document;
+    assert.equal(doc.querySelector('.pcw-cart__status').textContent, '');
+    assert.equal(doc.querySelector('.pcw-cart__control').hidden, true);
+    mode = 'unavailable'; doc.querySelector('.pcw-cart__retry').click(); await tick();
+    assert.equal(doc.querySelector('.pcw-cart__status').textContent, '');
+    assert.equal(doc.querySelector('.pcw-cart__add').disabled, true);
+    doc.querySelector('.pcw-cart').dataset.variable = '1';
+    dom.window.dispatchEvent(new dom.window.Event('focus')); await tick();
+    assert.equal(doc.querySelector('.pcw-cart__status').textContent, '');
+    assert.equal(doc.querySelector('.pcw-cart__control').hidden, true);
+    dom.window.close();
+});
