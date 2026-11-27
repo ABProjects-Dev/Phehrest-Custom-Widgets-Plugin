@@ -26,6 +26,72 @@ fs.mkdirSync(output, { recursive: true });
             throw new Error(`Initial widget not ready: ${await widget.innerText()} | info ${JSON.stringify(info)} | events ${JSON.stringify(diagnostics)}`);
         }
         await out.locator('.pcw-cart__status').waitFor({ state: 'visible' });
+        // Elementor's saved responsive controls produce CSS, rather than only inline overrides.
+        assert.equal(await out.locator('.pcw-cart__add').evaluate(el => getComputedStyle(el).minWidth), '180px');
+        assert(await out.locator('.pcw-cart__add').evaluate(el => el.classList.contains('pcw-cart__add--icon-left')), 'saved physical icon position renders');
+        await page.setViewportSize({ width: 390, height: 844 });
+        assert.equal(await out.locator('.pcw-cart__add').evaluate(el => getComputedStyle(el).minWidth), '140px');
+        await page.setViewportSize({ width: 1440, height: 900 });
+        // Exercise the layout independently of cart requests, with the actual Elementor markup/CSS.
+        // The invisible add button remains the size anchor in both counter states.
+        for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+            await page.setViewportSize(viewport);
+            for (const direction of ['rtl', 'ltr']) {
+                for (const text of ['خرید', 'افزودن این محصول فوق العاده طولانی به سبد خرید برای آزمایش واکنش گرایی']) {
+                    for (const position of ['right', 'left']) {
+                        const result = await widget.evaluate((root, config) => {
+                            document.documentElement.dir = config.direction;
+                            const add = root.querySelector('.pcw-cart__add');
+                            const label = add.querySelector('.pcw-cart__label');
+                            const icon = add.querySelector('.pcw-cart__icon');
+                            const counter = root.querySelector('.pcw-cart__counter');
+                            label.textContent = config.text;
+                            add.classList.toggle('pcw-cart__add--icon-right', config.position === 'right');
+                            add.classList.toggle('pcw-cart__add--icon-left', config.position === 'left');
+                            root.style.setProperty('--pcw-add-min-width', '130px');
+                            root.style.setProperty('--pcw-add-icon-size', '22px');
+                            const before = add.getBoundingClientRect();
+                            const labelRect = label.getBoundingClientRect();
+                            const iconRect = icon.getBoundingClientRect();
+                            add.hidden = true;
+                            counter.hidden = false;
+                            root.classList.add('pcw-cart--one');
+                            const anchorHidden = getComputedStyle(add).visibility === 'hidden';
+                            const counterState = () => ({
+                                rect: counter.getBoundingClientRect(),
+                                downX: root.querySelector('.pcw-cart__down').getBoundingClientRect().x,
+                                upX: root.querySelector('.pcw-cart__up').getBoundingClientRect().x,
+                                removeVisible: getComputedStyle(root.querySelector('.pcw-cart__remove')).display !== 'none',
+                                minusVisible: getComputedStyle(root.querySelector('.pcw-cart__minus')).display !== 'none',
+                            });
+                            const one = counterState();
+                            root.classList.remove('pcw-cart--one');
+                            const multiple = counterState();
+                            add.hidden = false;
+                            counter.hidden = true;
+                            return { width: before.width, height: before.height, iconX: iconRect.x, labelX: labelRect.x, one: { width: one.rect.width, height: one.rect.height, downX: one.downX, upX: one.upX, removeVisible: one.removeVisible, minusVisible: one.minusVisible }, multiple: { width: multiple.rect.width, height: multiple.rect.height, downX: multiple.downX, upX: multiple.upX, removeVisible: multiple.removeVisible, minusVisible: multiple.minusVisible }, anchorHidden };
+                        }, { direction, text, position });
+                        assert(result.width >= 129, `minimum width applies: ${JSON.stringify(result)}`);
+                        assert(result.anchorHidden, 'size anchor is visually and accessibly hidden');
+                        assert(position === 'right' ? result.iconX > result.labelX : result.iconX < result.labelX, `physical icon position ${position} in ${direction}`);
+                        assert(result.one.removeVisible && !result.one.minusVisible, 'one shows remove');
+                        assert(!result.multiple.removeVisible && result.multiple.minusVisible, 'multiple shows minus');
+                        for (const state of [result.one, result.multiple]) {
+                            assert(state.downX < state.upX, `decrease/remove left and increase right in ${direction}`);
+                            assert(Math.abs(result.width - state.width) < 0.1 && Math.abs(result.height - state.height) < 0.1, `counter matches add button at ${viewport.width}px: ${JSON.stringify(result)}`);
+                        }
+                    }
+                }
+            }
+        }
+        await widget.evaluate(root => {
+            root.querySelector('.pcw-cart__label').textContent = 'افزودن به سبد خرید';
+            root.querySelector('.pcw-cart__add').classList.replace('pcw-cart__add--icon-left', 'pcw-cart__add--icon-right');
+            root.style.removeProperty('--pcw-add-min-width');
+            root.style.removeProperty('--pcw-add-icon-size');
+            document.documentElement.dir = 'rtl';
+        });
+        await page.setViewportSize({ width: 1440, height: 900 });
         assert.equal(await page.locator('html').getAttribute('dir'), 'rtl', 'Persian site renders RTL');
         assert.equal(await out.locator('.pcw-cart__add').isDisabled(), true, 'out-of-stock is disabled');
         await page.screenshot({ path: `${output}/01-desktop-empty-rtl.png`, fullPage: true });
@@ -35,6 +101,7 @@ fs.mkdirSync(output, { recursive: true });
         await out.scrollIntoViewIfNeeded();
         await page.screenshot({ path: `${output}/02-out-of-stock.png`, fullPage: true });
         await widget.scrollIntoViewIfNeeded();
+        const initialBox = await widget.locator('.pcw-cart__add').boundingBox();
         await page.route('**/wp-admin/admin-ajax.php', async route => {
             const body = route.request().postData() || '';
             if (body.includes('action=pcw_cart_change')) await new Promise(resolve => setTimeout(resolve, 1500));
@@ -46,9 +113,14 @@ fs.mkdirSync(output, { recursive: true });
         await page.waitForFunction(product => document.querySelector(`.pcw-cart[data-product-id="${product}"] .pcw-cart__quantity`)?.textContent === '1', fixture.product);
         await page.waitForFunction(product => document.querySelector(`.pcw-cart[data-product-id="${product}"]`).getAttribute('aria-busy') === 'false', fixture.product);
         await page.locator('.widget_shopping_cart_content').getByText('محصول آزمایشی فهرست', { exact: false }).first().waitFor();
+        assert.equal(await widget.locator('a.added_to_cart').count(), 0, 'widget does not display WooCommerce view-cart link');
+        const oneBox = await widget.locator('.pcw-cart__counter').boundingBox();
+        assert(Math.abs(initialBox.width - oneBox.width) < 0.1 && Math.abs(initialBox.height - oneBox.height) < 0.1, 'actual cart state one retains button size');
         await page.screenshot({ path: `${output}/04-one.png`, fullPage: true });
         await widget.locator('.pcw-cart__up').click();
         await page.waitForFunction(product => document.querySelector(`.pcw-cart[data-product-id="${product}"] .pcw-cart__quantity`)?.textContent === '2', fixture.product);
+        const twoBox = await widget.locator('.pcw-cart__counter').boundingBox();
+        assert(Math.abs(initialBox.width - twoBox.width) < 0.1 && Math.abs(initialBox.height - twoBox.height) < 0.1, 'actual cart state two retains button size');
         await page.screenshot({ path: `${output}/05-two.png`, fullPage: true });
         await page.setViewportSize({ width: 390, height: 844 });
         await page.screenshot({ path: `${output}/06-mobile.png`, fullPage: true });
@@ -60,6 +132,15 @@ fs.mkdirSync(output, { recursive: true });
         await widget.locator('.pcw-cart__down').click();
         await widget.locator('.pcw-cart__add').waitFor({ state: 'visible' });
         await page.locator('.widget_shopping_cart_content').getByText('محصول آزمایشی فهرست', { exact: false }).first().waitFor({ state: 'hidden' });
+        assert.equal(await widget.locator('a.added_to_cart').count(), 0, 'widget does not leave a stale view-cart link after removal');
+        // A standard WooCommerce button keeps its original behavior outside the widget.
+        await page.locator('.pcw-test-standard .add_to_cart_button').click();
+        await page.locator('.pcw-test-standard a.added_to_cart').waitFor({ state: 'visible' });
+        await page.waitForFunction(product => document.querySelector(`.pcw-cart[data-product-id="${product}"] .pcw-cart__quantity`)?.textContent === '1', fixture.product);
+        assert.equal(await widget.locator('a.added_to_cart').count(), 0, 'standard button event does not add a link inside widget');
+        await widget.locator('.pcw-cart__down').click();
+        await widget.locator('.pcw-cart__add').waitFor({ state: 'visible' });
+        assert.equal(await page.locator('.pcw-test-standard a.added_to_cart').count(), 1, 'other button view-cart link is preserved');
         await page.unroute('**/wp-admin/admin-ajax.php');
         await page.route('**/wp-admin/admin-ajax.php', async route => {
             if ((route.request().postData() || '').includes('action=pcw_cart_change')) await route.abort();

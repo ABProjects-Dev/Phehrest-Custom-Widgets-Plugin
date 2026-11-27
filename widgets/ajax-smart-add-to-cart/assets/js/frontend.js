@@ -33,6 +33,15 @@
                 return json.data;
             });
     }
+    // WooCommerce may insert its standard "view cart" link after the button passed
+    // with added_to_cart. Remove only links inside this widget's own control.
+    function removeViewCartLink(widget) {
+        const control = widget.querySelector('.pcw-cart__control');
+        if (!control) return;
+        for (const child of Array.from(control.children)) {
+            if (child.tagName === 'A' && child.classList.contains('added_to_cart')) child.remove();
+        }
+    }
     function setBusy(widget, busy) {
         widget.setAttribute('aria-busy', String(busy));
         widget.querySelectorAll('button').forEach(button => { button.disabled = busy; });
@@ -62,7 +71,7 @@
         widget.hidden = !state.purchasable && !count && widget.dataset.outOfStock === 'hide';
     }
     async function sync(widget) {
-        if (!widget.isConnected) { widgets.delete(widget); return; }
+        if (!widget.isConnected) { widget.pcwObserver?.disconnect(); widgets.delete(widget); return; }
         const generation = ++widget.pcwGeneration;
         const variation = formData(widget);
         if (!variation) {
@@ -115,7 +124,10 @@
             });
             if (window.jQuery) {
                 const body = window.jQuery(document.body);
-                if (!result.replayed && button.dataset.operation === 'add') body.trigger('added_to_cart', [result.fragments, result.cart_hash, window.jQuery(button)]);
+                if (!result.replayed && button.dataset.operation === 'add') {
+                    body.trigger('added_to_cart', [result.fragments, result.cart_hash, window.jQuery(button)]);
+                    removeViewCartLink(widget);
+                }
                 else if (!result.replayed && button.dataset.operation === 'remove') body.trigger('removed_from_cart', [result.fragments, result.cart_hash, window.jQuery(button)]);
                 if (result.replayed || button.dataset.operation === 'increase' || button.dataset.operation === 'decrease') body.trigger('wc_fragment_refresh');
             }
@@ -134,6 +146,9 @@
             if (widgets.has(widget)) return;
             widgets.add(widget);
             widget.pcwGeneration = 0;
+            removeViewCartLink(widget);
+            widget.pcwObserver = new MutationObserver(() => removeViewCartLink(widget));
+            widget.pcwObserver.observe(widget.querySelector('.pcw-cart__control'), { childList: true });
             widget.querySelector('.pcw-cart__retry').addEventListener('click', () => sync(widget));
             widget.addEventListener('click', event => {
                 const button = event.target.closest('button[data-operation]');

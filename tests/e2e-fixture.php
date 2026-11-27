@@ -10,13 +10,20 @@ $out = new WC_Product_Simple();
 $out->set_name('محصول ناموجود آزمایشی'); $out->set_status('publish'); $out->set_regular_price('18');
 $out->set_manage_stock(true); $out->set_stock_quantity(0); $outId = $out->save();
 $page = wp_insert_post(['post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'تست ابزارک فهرست']);
-$widget = static function ($id, $productId) { return ['id' => $id, 'elType' => 'widget', 'widgetType' => 'phehrest_ajax_smart_add_to_cart', 'settings' => ['source' => 'selected', 'product_id' => $productId], 'elements' => []]; };
+$widget = static function ($id, $productId) {
+    $settings = ['source' => 'selected', 'product_id' => $productId];
+    if ($id === 'pcwout01') {
+        $settings += ['icon_position' => 'left', 'add_min_width' => ['unit' => 'px', 'size' => 180], 'add_min_width_mobile' => ['unit' => 'px', 'size' => 140]];
+    }
+    return ['id' => $id, 'elType' => 'widget', 'widgetType' => 'phehrest_ajax_smart_add_to_cart', 'settings' => $settings, 'elements' => []];
+};
 $elements = [[
     'id' => 'pcwsect1', 'elType' => 'section', 'settings' => [], 'elements' => [[
         'id' => 'pcwcol01', 'elType' => 'column', 'settings' => ['_column_size' => 100], 'elements' => [
             ['id' => 'pcwtitle', 'elType' => 'widget', 'widgetType' => 'heading', 'settings' => ['title' => 'تجربه خرید آسان'], 'elements' => []],
             $widget('pcwmain1', $productId),
             ['id' => 'pcwmini1', 'elType' => 'widget', 'widgetType' => 'shortcode', 'settings' => ['shortcode' => '[pcw_test_mini_cart]'], 'elements' => []],
+            ['id' => 'pcwstd01', 'elType' => 'widget', 'widgetType' => 'shortcode', 'settings' => ['shortcode' => '[pcw_test_standard_button product="' . $productId . '"]'], 'elements' => []],
             $widget('pcwout01', $outId),
         ],
     ]],
