@@ -46,7 +46,20 @@ final class AjaxController {
             $operation = isset($_POST['operation']) && is_string($_POST['operation']) ? sanitize_key(wp_unslash($_POST['operation'])) : '';
             $key = isset($_POST['key']) && is_string($_POST['key']) ? sanitize_text_field(wp_unslash($_POST['key'])) : '';
             $quantity = isset($_POST['quantity']) ? absint($_POST['quantity']) : 0;
-            $result = (new CartService())->change($productId, $variationId, $attributes, $operation, $key, $quantity);
+            $requestId = isset($_POST['request_id']) && is_string($_POST['request_id']) ? sanitize_key(wp_unslash($_POST['request_id'])) : '';
+            ksort($attributes);
+            $payload = wp_json_encode([$productId, $variationId, $attributes, $operation, $key, $quantity]);
+            $ledger = new IdempotencyStore();
+            $result = $ledger->reserve($requestId, $payload);
+            $replayed = $result !== null;
+            if (!$replayed) {
+                $result = (new CartService())->change($productId, $variationId, $attributes, $operation, $key, $quantity);
+                // Persist the official WooCommerce session before marking the operation complete.
+                if (!is_callable([WC()->session, 'save_data'])) { throw new CartException(__('ذخیره نشست در دسترس نیست؛ سبد خرید را بررسی کنید.', 'phehrest-custom-widgets')); }
+                WC()->session->save_data();
+                $ledger->complete($requestId, $result);
+            }
+            $result['replayed'] = $replayed;
             ob_start(); woocommerce_mini_cart(); $miniCart = ob_get_clean();
             $result['fragments'] = apply_filters('woocommerce_add_to_cart_fragments', ['div.widget_shopping_cart_content' => '<div class="widget_shopping_cart_content">' . $miniCart . '</div>']);
             $result['cart_hash'] = WC()->cart->get_cart_hash();

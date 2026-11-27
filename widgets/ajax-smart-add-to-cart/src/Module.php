@@ -3,11 +3,19 @@ namespace Phehrest\CustomWidgets\Widgets\AjaxSmartAddToCart;
 if (!defined('ABSPATH')) { exit; }
 final class Module {
     public function boot(): void {
+        add_action('before_woocommerce_init', [new MutationGuard(), 'acquire'], 1);
         add_action('elementor/widgets/register', [$this, 'register_widget']);
         add_action('wp_enqueue_scripts', [$this, 'register_assets']);
         add_action('elementor/editor/after_enqueue_scripts', [$this, 'register_assets']);
+        add_action('elementor/editor/after_enqueue_scripts', [$this, 'editor_assets']);
+        add_action('wp_ajax_pcw_search_products', [new ProductSearch(), 'search']);
         foreach (['wp_ajax_pcw_cart_state', 'wp_ajax_nopriv_pcw_cart_state'] as $hook) { add_action($hook, [new AjaxController(), 'state']); }
         foreach (['wp_ajax_pcw_cart_change', 'wp_ajax_nopriv_pcw_cart_change'] as $hook) { add_action($hook, [new AjaxController(), 'change']); }
+    }
+    public function editor_assets(): void {
+        wp_enqueue_script('pcw-product-search', PCW_URL . 'widgets/ajax-smart-add-to-cart/assets/js/editor.js', [], PCW_VERSION, true);
+        wp_enqueue_style('pcw-editor', PCW_URL . 'widgets/ajax-smart-add-to-cart/assets/css/editor.css', [], PCW_VERSION);
+        wp_localize_script('pcw-product-search', 'pcwProductSearch', ['ajaxUrl' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('pcw_product_search'), 'empty' => __('محصولی پیدا نشد.', 'phehrest-custom-widgets'), 'error' => __('جست‌وجو ناموفق بود.', 'phehrest-custom-widgets')]);
     }
     public function register_widget($manager): void { $manager->register(new Widget()); }
     public function register_assets(): void {

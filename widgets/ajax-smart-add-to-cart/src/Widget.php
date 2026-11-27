@@ -5,6 +5,7 @@ use Elementor\Group_Control_Typography;
 use Elementor\Group_Control_Box_Shadow;
 use Elementor\Icons_Manager;
 use Elementor\Widget_Base;
+use Phehrest\CustomWidgets\DesignSystem;
 if (!defined('ABSPATH')) { exit; }
 final class Widget extends Widget_Base {
     public function get_name() { return 'phehrest_ajax_smart_add_to_cart'; }
@@ -17,6 +18,7 @@ final class Widget extends Widget_Base {
         $this->start_controls_section('pcw_content', ['label' => __('محتوا', 'phehrest-custom-widgets')]);
         $this->add_control('source', ['label' => __('منبع محصول', 'phehrest-custom-widgets'), 'type' => Controls_Manager::SELECT, 'default' => 'current', 'options' => ['current' => __('محصول جاری / Loop', 'phehrest-custom-widgets'), 'selected' => __('محصول مشخص', 'phehrest-custom-widgets')]]);
         $this->add_control('product_id', ['label' => __('شناسه محصول', 'phehrest-custom-widgets'), 'type' => Controls_Manager::NUMBER, 'min' => 1, 'condition' => ['source' => 'selected'], 'description' => __('شناسه عددی محصول را وارد کنید.', 'phehrest-custom-widgets')]);
+        $this->add_control('product_search', ['type' => Controls_Manager::RAW_HTML, 'raw' => '<div class="pcw-product-search"><label>جست‌وجوی محصول <input class="pcw-product-search__input" type="search" autocomplete="off" placeholder="نام محصول" aria-label="جست‌وجوی محصول"></label><div class="pcw-product-search__results" aria-live="polite"></div></div>', 'condition' => ['source' => 'selected']]);
         $this->add_control('button_text', ['label' => __('متن دکمه', 'phehrest-custom-widgets'), 'type' => Controls_Manager::TEXT, 'default' => __('افزودن به سبد خرید', 'phehrest-custom-widgets')]);
         $this->add_control('loading_text', ['label' => __('متن بارگذاری', 'phehrest-custom-widgets'), 'type' => Controls_Manager::TEXT, 'default' => __('در حال به‌روزرسانی…', 'phehrest-custom-widgets')]);
         foreach (['add' => ['افزودن', 'fas fa-shopping-bag'], 'plus' => ['مثبت', 'fas fa-plus'], 'minus' => ['منفی', 'fas fa-minus'], 'remove' => ['حذف', 'fas fa-trash-alt']] as $name => $icon) {
@@ -36,6 +38,17 @@ final class Widget extends Widget_Base {
         }
         $this->add_responsive_control('inner_padding', ['label' => __('فاصله داخلی', 'phehrest-custom-widgets'), 'type' => Controls_Manager::DIMENSIONS, 'size_units' => ['px', 'em', '%'], 'selectors' => ['{{WRAPPER}} .pcw-cart__add, {{WRAPPER}} .pcw-cart__counter' => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};']]);
         $this->add_group_control(Group_Control_Box_Shadow::get_type(), ['name' => 'shadow', 'selector' => '{{WRAPPER}} .pcw-cart__add, {{WRAPPER}} .pcw-cart__counter']);
+        $this->add_control('quantity_color', ['label' => __('رنگ عدد', 'phehrest-custom-widgets'), 'type' => Controls_Manager::COLOR, 'selectors' => ['{{WRAPPER}} .pcw-cart' => '--pcw-quantity-color: {{VALUE}};']]);
+        $this->add_control('initial_border_color', ['label' => __('حاشیه دکمه اولیه', 'phehrest-custom-widgets'), 'type' => Controls_Manager::COLOR, 'selectors' => ['{{WRAPPER}} .pcw-cart__add' => 'border-color: {{VALUE}};']]);
+        foreach (['one' => 'حالت تعداد یک', 'multiple' => 'حالت تعداد بیشتر'] as $state => $label) {
+            $this->add_control($state . '_heading', ['label' => $label, 'type' => Controls_Manager::HEADING, 'separator' => 'before']);
+            $this->add_control($state . '_background', ['label' => __('پس‌زمینه', 'phehrest-custom-widgets'), 'type' => Controls_Manager::COLOR, 'selectors' => ['{{WRAPPER}} .pcw-cart' => '--pcw-' . $state . '-bg: {{VALUE}};']]);
+            $this->add_control($state . '_border', ['label' => __('حاشیه', 'phehrest-custom-widgets'), 'type' => Controls_Manager::COLOR, 'selectors' => ['{{WRAPPER}} .pcw-cart' => '--pcw-' . $state . '-border: {{VALUE}};']]);
+            $selector = $state === 'one' ? '{{WRAPPER}} .pcw-cart--one .pcw-cart__counter' : '{{WRAPPER}} .pcw-cart:not(.pcw-cart--one) .pcw-cart__counter';
+            $this->add_responsive_control($state . '_padding', ['label' => __('فاصله داخلی', 'phehrest-custom-widgets'), 'type' => Controls_Manager::DIMENSIONS, 'size_units' => ['px', 'em', '%'], 'selectors' => [$selector => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};']]);
+            $this->add_responsive_control($state . '_radius', ['label' => __('گردی گوشه', 'phehrest-custom-widgets'), 'type' => Controls_Manager::DIMENSIONS, 'size_units' => ['px', '%'], 'selectors' => [$selector => 'border-radius: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};']]);
+            $this->add_group_control(Group_Control_Box_Shadow::get_type(), ['name' => $state . '_shadow', 'selector' => $selector]);
+        }
         $this->add_control('transition', ['label' => __('زمان transition (ms)', 'phehrest-custom-widgets'), 'type' => Controls_Manager::SLIDER, 'range' => ['px' => ['min' => 0, 'max' => 1000]], 'selectors' => ['{{WRAPPER}} .pcw-cart' => '--pcw-duration: {{SIZE}}ms;']]);
         $this->end_controls_section();
     }
@@ -53,7 +66,7 @@ final class Widget extends Widget_Base {
         if (!$product->is_in_stock() && ($settings['out_of_stock'] ?? '') === 'hide') { return; }
         $classes = 'pcw-cart' . (($settings['animate'] ?? '') === 'yes' ? '' : ' pcw-cart--no-animation') . (($settings['show_quantity'] ?? '') === 'yes' ? '' : ' pcw-cart--hide-quantity');
         ?>
-        <div class="<?php echo esc_attr($classes); ?>" data-product-id="<?php echo esc_attr($id); ?>" data-variable="<?php echo $product->is_type('variable') ? '1' : '0'; ?>" data-loading="<?php echo esc_attr($settings['loading_text']); ?>" data-out-of-stock="<?php echo esc_attr($settings['out_of_stock']); ?>" aria-busy="false">
+        <div class="pcw-design" style="<?php echo esc_attr(DesignSystem::style()); ?>"><div class="<?php echo esc_attr($classes); ?>" data-product-id="<?php echo esc_attr($id); ?>" data-variable="<?php echo $product->is_type('variable') ? '1' : '0'; ?>" data-loading="<?php echo esc_attr($settings['loading_text']); ?>" data-out-of-stock="<?php echo esc_attr($settings['out_of_stock']); ?>" aria-busy="false">
             <div class="pcw-cart__control" hidden>
                 <button type="button" class="pcw-cart__add" data-operation="add"><span class="pcw-cart__icon" aria-hidden="true"><?php Icons_Manager::render_icon($settings['icon_add'], ['aria-hidden' => 'true']); ?></span><span><?php echo esc_html($settings['button_text']); ?></span></button>
                 <div class="pcw-cart__counter" hidden><button type="button" class="pcw-cart__step pcw-cart__down" data-operation="decrease" aria-label="<?php echo esc_attr__('کاهش تعداد', 'phehrest-custom-widgets'); ?>"><span class="pcw-cart__minus" aria-hidden="true"><?php Icons_Manager::render_icon($settings['icon_minus'], ['aria-hidden' => 'true']); ?></span><span class="pcw-cart__remove" aria-hidden="true"><?php Icons_Manager::render_icon($settings['icon_remove'], ['aria-hidden' => 'true']); ?></span></button><span class="pcw-cart__quantity" aria-live="polite"></span><button type="button" class="pcw-cart__step pcw-cart__up" data-operation="increase" aria-label="<?php echo esc_attr__('افزایش تعداد', 'phehrest-custom-widgets'); ?>"><span aria-hidden="true"><?php Icons_Manager::render_icon($settings['icon_plus'], ['aria-hidden' => 'true']); ?></span></button></div>
@@ -61,6 +74,6 @@ final class Widget extends Widget_Base {
             <p class="pcw-cart__status" role="status" aria-live="polite"></p>
             <button type="button" class="pcw-cart__retry" hidden><?php echo esc_html__('تلاش مجدد', 'phehrest-custom-widgets'); ?></button>
             <noscript><a href="<?php echo esc_url(get_permalink($id)); ?>"><?php echo esc_html__('برای خرید به صفحه محصول بروید.', 'phehrest-custom-widgets'); ?></a></noscript>
-        </div><?php
+        </div></div><?php
     }
 }

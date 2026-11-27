@@ -1,6 +1,7 @@
 <?php
 namespace Phehrest\CustomWidgets\Admin;
 use Phehrest\CustomWidgets\Widgets\Registry;
+use Phehrest\CustomWidgets\DesignSystem;
 if (!defined('ABSPATH')) { exit; }
 final class Dashboard {
     private Registry $registry;
@@ -8,6 +9,7 @@ final class Dashboard {
     public function boot(): void {
         add_action('admin_menu', [$this, 'menu']);
         add_action('admin_post_pcw_save_widgets', [$this, 'save']);
+        add_action('admin_post_pcw_save_design', [$this, 'save_design']);
         add_action('admin_enqueue_scripts', [$this, 'assets']);
     }
     public function menu(): void {
@@ -28,6 +30,14 @@ final class Dashboard {
         wp_safe_redirect(add_query_arg(['page' => 'pcw-widgets', 'updated' => '1'], admin_url('admin.php')));
         exit;
     }
+    public function save_design(): void {
+        if (!current_user_can('manage_options')) { wp_die(esc_html__('دسترسی غیرمجاز.', 'phehrest-custom-widgets'), '', ['response' => 403]); }
+        check_admin_referer('pcw_save_design');
+        $values = isset($_POST['design']) && is_array($_POST['design']) ? wp_unslash($_POST['design']) : [];
+        update_option('pcw_design_system', DesignSystem::sanitize($values), false);
+        wp_safe_redirect(add_query_arg(['page' => 'pcw-widgets', 'updated' => '1'], admin_url('admin.php')));
+        exit;
+    }
     public function render(): void {
         if (!current_user_can('manage_options')) { return; }
         ?>
@@ -45,6 +55,19 @@ final class Dashboard {
                 </article>
             <?php endforeach; ?></div>
             <?php submit_button('ذخیره تنظیمات'); ?>
-        </form></div><?php
+        </form>
+        <?php $design = DesignSystem::sanitize(get_option('pcw_design_system', [])); ?>
+        <section class="pcw-card pcw-admin__design"><h2>طراحی مشترک</h2><p>این پیش‌فرض‌ها فقط در محدوده ابزارک‌های افزونه اعمال می‌شوند؛ تنظیمات همان ابزارک در المنتور اولویت دارند.</p>
+        <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post"><input type="hidden" name="action" value="pcw_save_design"><?php wp_nonce_field('pcw_save_design'); ?>
+        <div class="pcw-admin__fields">
+        <?php foreach (['primary'=>'رنگ اصلی', 'text'=>'متن دکمه', 'surface'=>'پس‌زمینه شمارنده', 'border'=>'حاشیه', 'positive'=>'مثبت', 'negative'=>'منفی', 'danger'=>'حذف'] as $key => $label): ?>
+            <label><?php echo esc_html($label); ?><input type="text" name="design[<?php echo esc_attr($key); ?>]" value="<?php echo esc_attr($design[$key] ?? ''); ?>" placeholder="#5060db" pattern="#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?" dir="ltr"></label>
+        <?php endforeach; ?>
+        <?php foreach (['radius'=>'گردی (px)', 'gap'=>'فاصله (px)', 'duration'=>'زمان انیمیشن (ms)'] as $key => $label): ?>
+            <label><?php echo esc_html($label); ?><input type="number" min="0" max="<?php echo $key === 'duration' ? '1000' : '80'; ?>" name="design[<?php echo esc_attr($key); ?>]" value="<?php echo esc_attr($design[$key] ?? ''); ?>"></label>
+        <?php endforeach; ?>
+        <label>سایه<select name="design[shadow]"><?php foreach ([''=>'پیش‌فرض','none'=>'بدون سایه','soft'=>'ملایم','medium'=>'متوسط'] as $key => $label): ?><option value="<?php echo esc_attr($key); ?>" <?php selected($design['shadow'] ?? '', $key); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select></label>
+        <label>فونت<select name="design[font]"><?php foreach ([''=>'پیش‌فرض','inherit'=>'قالب','tahoma'=>'Tahoma','system'=>'سیستم'] as $key => $label): ?><option value="<?php echo esc_attr($key); ?>" <?php selected($design['font'] ?? '', $key); ?>><?php echo esc_html($label); ?></option><?php endforeach; ?></select></label>
+        </div><?php submit_button('ذخیره طراحی'); ?></form></section></div><?php
     }
 }

@@ -89,7 +89,7 @@ jobs:
           mkdir -p /tmp/pcw-wp/wp-content/mu-plugins
           cp tests/e2e-mu-plugin.php /tmp/pcw-wp/wp-content/mu-plugins/pcw-fixture.php
           PCW_TEST_ENV=1 wp eval-file "$GITHUB_WORKSPACE/tests/e2e-fixture.php" --path=/tmp/pcw-wp
-          wp server --host=127.0.0.1 --port=8080 --path=/tmp/pcw-wp > /tmp/pcw-server.log 2>&1 &
+          PHP_CLI_SERVER_WORKERS=4 wp server --host=127.0.0.1 --port=8080 --path=/tmp/pcw-wp > /tmp/pcw-server.log 2>&1 &
       - name: Exercise real Elementor pages and capture screenshots
         run: npm run test:e2e
       - name: Upload real screenshots

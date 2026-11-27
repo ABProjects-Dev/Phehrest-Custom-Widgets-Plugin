@@ -99,14 +99,17 @@
         let errorMessage = '';
         try {
             const state = widget.pcwState;
+            const random = new Uint8Array(16);
+            window.crypto.getRandomValues(random);
+            const requestId = Array.from(random, byte => byte.toString(16).padStart(2, '0')).join('');
             const result = await request('pcw_cart_change', widget, currentVariation, {
-                operation: button.dataset.operation, key: state.key, quantity: String(state.quantity), nonce: state.nonce, token: state.token,
+                operation: button.dataset.operation, key: state.key, quantity: String(state.quantity), nonce: state.nonce, token: state.token, request_id: requestId,
             });
             if (window.jQuery) {
                 const body = window.jQuery(document.body);
-                if (button.dataset.operation === 'add') body.trigger('added_to_cart', [result.fragments, result.cart_hash, window.jQuery(button)]);
-                else if (button.dataset.operation === 'remove') body.trigger('removed_from_cart', [result.fragments, result.cart_hash, window.jQuery(button)]);
-                if (button.dataset.operation === 'increase' || button.dataset.operation === 'decrease') body.trigger('wc_fragment_refresh');
+                if (!result.replayed && button.dataset.operation === 'add') body.trigger('added_to_cart', [result.fragments, result.cart_hash, window.jQuery(button)]);
+                else if (!result.replayed && button.dataset.operation === 'remove') body.trigger('removed_from_cart', [result.fragments, result.cart_hash, window.jQuery(button)]);
+                if (result.replayed || button.dataset.operation === 'increase' || button.dataset.operation === 'decrease') body.trigger('wc_fragment_refresh');
             }
             document.dispatchEvent(new CustomEvent('pcw:cart-changed'));
         } catch (error) { errorMessage = error.message; }

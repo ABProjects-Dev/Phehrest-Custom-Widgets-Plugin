@@ -53,6 +53,24 @@ fs.mkdirSync(output, { recursive: true });
         await widget.locator('.pcw-cart__retry').waitFor({ state: 'visible' });
         await page.screenshot({ path: `${output}/07-simulated-network-error.png`, fullPage: true });
         await page.unroute('**/wp-admin/admin-ajax.php');
+        // Two identical mutations from separate concurrent HTTP requests must never double-add.
+        const concurrent = await page.evaluate(async productId => {
+            async function post(values) {
+                const response = await fetch('/wp-admin/admin-ajax.php', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: new URLSearchParams(values) });
+                return { status: response.status, body: await response.json() };
+            }
+            const state = await post({ action: 'pcw_cart_state', product_id: productId, variation_id: '0' });
+            if (!state.body.success) throw new Error('Unable to read cart before concurrent requests');
+            const data = state.body.data;
+            const payload = { action: 'pcw_cart_change', product_id: productId, variation_id: '0', operation: 'add', key: data.key, quantity: String(data.quantity), nonce: data.nonce, token: data.token, request_id: 'a'.repeat(32) };
+            const attempts = await Promise.all([post(payload), post(payload)]);
+            const replay = await post(payload);
+            const latest = await post({ action: 'pcw_cart_state', product_id: productId, variation_id: '0' });
+            return { attempts, replay, latest };
+        }, String(fixture.product));
+        assert(concurrent.attempts.some(x => x.body.success), 'one concurrent request succeeds');
+        assert.equal(concurrent.replay.body.data.replayed, true, 'identical retry replays without mutation');
+        assert.equal(concurrent.latest.body.data.quantity, 1, 'concurrent requests do not duplicate product');
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.goto(`${base}/wp-login.php`, { waitUntil: 'domcontentloaded' });
         await page.locator('#user_login').fill('admin'); await page.locator('#user_pass').fill('test-only');
@@ -60,7 +78,24 @@ fs.mkdirSync(output, { recursive: true });
         await page.goto(`${base}/wp-admin/post.php?post=${fixture.page}&action=elementor`, { waitUntil: 'domcontentloaded' });
         const editorFrame = page.frameLocator('#elementor-preview-iframe');
         await editorFrame.locator(`.pcw-cart[data-product-id="${fixture.product}"]`).waitFor({ timeout: 90000 });
+        await editorFrame.locator('.elementor-element-pcwmain1').click();
+        const search = page.locator('.pcw-product-search__input');
+        await search.waitFor({ state: 'visible', timeout: 30000 });
+        await search.fill('محصول');
+        const searchResult = page.locator('.pcw-product-search__results button').filter({ hasText: 'محصول آزمایشی فهرست' });
+        await searchResult.waitFor({ state: 'visible' });
+        await searchResult.click();
+        assert.equal(await page.locator('.elementor-control-product_id input[data-setting="product_id"]').inputValue(), String(fixture.product), 'product search selects the product');
         await page.screenshot({ path: `${output}/08-elementor-editor.png`, fullPage: true });
+        await page.goto(`${base}/wp-admin/admin.php?page=pcw-widgets`, { waitUntil: 'domcontentloaded' });
+        await page.locator('input[name="design[primary]"]').fill('#123456');
+        await page.locator('.pcw-admin__design input[type="submit"]').click();
+        await page.waitForURL(/updated=1/);
+        await page.screenshot({ path: `${output}/09-design-settings.png`, fullPage: true });
+        await page.goto(`${base}/?page_id=${fixture.page}`, { waitUntil: 'domcontentloaded' });
+        const add = page.locator(`.pcw-cart[data-product-id="${fixture.product}"] .pcw-cart__add`);
+        await add.waitFor({ state: 'visible' });
+        assert.equal(await add.evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(18, 52, 86)', 'design defaults apply inside widget');
         console.log('PASS: Real Elementor frontend, RTL, cart transitions, mobile, loading, error, unavailable product and editor.');
     } catch (error) {
         await page.screenshot({ path: `${output}/failure.png`, fullPage: true }).catch(() => {});

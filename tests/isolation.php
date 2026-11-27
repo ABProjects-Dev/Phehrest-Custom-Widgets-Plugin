@@ -16,5 +16,5 @@ $registry->boot();
 if (!empty($GLOBALS['hooks'])) { throw new RuntimeException('Disabled widgets must not register hooks.'); }
 define('WP_UNINSTALL_PLUGIN', true);
 require PCW_PATH . 'uninstall.php';
-if (($GLOBALS['deleted'] ?? []) !== ['pcw_enabled_widgets']) { throw new RuntimeException('Uninstall touched unexpected options.'); }
+if (($GLOBALS['deleted'] ?? []) !== ['pcw_enabled_widgets', 'pcw_design_system', 'pcw_idempotency']) { throw new RuntimeException('Uninstall touched unexpected options.'); }
 echo "PASS: default disabled, no module hooks, uninstall option scope\n";
