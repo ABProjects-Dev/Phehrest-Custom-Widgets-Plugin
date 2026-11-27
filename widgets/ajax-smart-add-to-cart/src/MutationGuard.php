@@ -16,7 +16,9 @@ final class MutationGuard {
         if (!$cookie || empty($cookie[0])) { if ($action === 'pcw_cart_change') { $this->deny(); } return; }
         self::$customer = is_user_logged_in() ? 'user:' . get_current_user_id() : 'guest:' . $cookie[0];
         self::$lock = self::lock_name('customer:' . self::$customer);
-        if (!self::lock(self::$lock, 0)) { wp_send_json_error(['message' => __('درخواست دیگری در حال اجراست؛ کمی صبر کنید و دوباره تلاش کنید.', 'phehrest-custom-widgets')], 409); }
+        $result = self::lock_result(self::$lock, 0);
+        if ($result === false) { wp_send_json_error(['code' => 'pcw_cart_busy', 'message' => __('درخواست دیگری در حال اجراست؛ کمی صبر کنید و دوباره تلاش کنید.', 'phehrest-custom-widgets')], 409); }
+        if ($result === null) { wp_send_json_error(['code' => 'pcw_lock_unavailable', 'message' => __('همگام‌سازی سبد خرید در دسترس نیست؛ دوباره تلاش کنید.', 'phehrest-custom-widgets')], 503); }
         // WooCommerce saves its session on shutdown at priority 20. Keep the lock until afterwards.
         add_action('shutdown', [self::class, 'release'], PHP_INT_MAX);
     }
@@ -29,10 +31,16 @@ final class MutationGuard {
         global $wpdb;
         return 'pcw:' . substr(hash_hmac('sha256', $wpdb->prefix . ':' . $name, wp_salt('auth')), 0, 56);
     }
-    public static function lock(string $name, int $seconds): bool {
+    private static function lock_result(string $name, int $seconds): ?bool {
         global $wpdb;
-        // MySQL advisory locks do not read or alter any WordPress/WooCommerce tables.
-        return (string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, %d)', $name, $seconds)) === '1';
+        // 0 means contention; NULL or an unexpected result means the lock service failed.
+        $result = $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, %d)', $name, $seconds));
+        if ((string) $result === '1') { return true; }
+        if ((string) $result === '0') { return false; }
+        return null;
+    }
+    public static function lock(string $name, int $seconds): bool {
+        return self::lock_result($name, $seconds) === true;
     }
     public static function unlock(string $name): void {
         global $wpdb;

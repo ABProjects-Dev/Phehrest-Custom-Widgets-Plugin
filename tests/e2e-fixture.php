@@ -3,13 +3,15 @@
 if (getenv('PCW_TEST_ENV') !== '1' || !defined('WP_CLI') || !WP_CLI) { throw new RuntimeException('Disposable WP-CLI test site required.'); }
 update_option('pcw_enabled_widgets', ['phehrest_ajax_smart_add_to_cart' => true], false);
 update_option('woocommerce_enable_ajax_add_to_cart', 'yes');
+// Legacy defaults remain stored but must no longer affect widget output.
+update_option('pcw_design_system', ['primary' => '#123456'], false);
 // Verify the actual Elementor control registry, not just rendered CSS.
 try {
 $widgetInstance = new \Phehrest\CustomWidgets\Widgets\AjaxSmartAddToCart\Widget();
 foreach (['icon_add', 'icon_position', 'icon_size', 'gap', 'add_icon_color', 'hover_icon_color', 'animate', 'transition', 'one_background', 'one_border', 'one_padding', 'one_radius', 'multiple_background', 'multiple_border', 'multiple_padding', 'multiple_radius', 'shadow_box_shadow_type', 'counter_shadow_box_shadow_type'] as $removed) {
     if ($widgetInstance->get_controls($removed) !== null) { throw new RuntimeException("Unexpected removed widget control: $removed"); }
 }
-foreach (['counter_icon_size', 'step_padding', 'step_radius', 'step_border_width', 'step_background', 'step_hover_color', 'step_hover_background', 'step_hover_border_color', 'quantity_color', 'quantity_background', 'quantity_padding', 'quantity_radius', 'counter_typography_typography'] as $required) {
+foreach (['show_errors', 'counter_icon_size', 'step_padding', 'step_radius', 'step_border_width', 'step_background', 'step_hover_color', 'step_hover_background', 'step_hover_border_color', 'quantity_color', 'quantity_background', 'quantity_padding', 'quantity_radius', 'counter_typography_typography'] as $required) {
     if ($widgetInstance->get_controls($required) === null) { throw new RuntimeException("Missing widget control: $required"); }
 }
 } catch (Throwable $error) {
@@ -22,9 +24,25 @@ $product->set_manage_stock(true); $product->set_stock_quantity(20); $productId =
 $out = new WC_Product_Simple();
 $out->set_name('محصول ناموجود آزمایشی'); $out->set_status('publish'); $out->set_regular_price('18');
 $out->set_manage_stock(true); $out->set_stock_quantity(0); $outId = $out->save();
+$silent = new WC_Product_Simple();
+$silent->set_name('محصول تست خطای مخفی'); $silent->set_status('publish'); $silent->set_regular_price('12'); $silentId = $silent->save();
+// Additional inactive test-only manifests exercise the carousel on the disposable site.
+$fixtureManifest = json_decode((string) file_get_contents(WP_PLUGIN_DIR . '/phehrest-custom-widgets/widgets/ajax-smart-add-to-cart/manifest.json'), true);
+for ($i = 1; $i <= 3; $i++) {
+    $dir = WP_PLUGIN_DIR . '/phehrest-custom-widgets/widgets/zz-pcw-fixture-' . $i;
+    wp_mkdir_p($dir);
+    $testManifest = $fixtureManifest;
+    $testManifest['id'] = 'pcw_fixture_' . $i;
+    $testManifest['name_fa'] = 'ابزارک آزمایشی ' . $i;
+    $testManifest['class'] = 'PCWFixtureWidget' . $i;
+    $testManifest['module_class'] = 'PCWFixtureModule' . $i;
+    $testManifest['autoload_namespace'] = 'PCWFixture' . $i . '\\';
+    file_put_contents($dir . '/manifest.json', wp_json_encode($testManifest));
+}
 $page = wp_insert_post(['post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'تست ابزارک فهرست']);
 $widget = static function ($id, $productId) {
     $settings = ['source' => 'selected', 'product_id' => $productId];
+    if ($id === 'pcwsilen' || $id === 'pcwinv01') { $settings['show_errors'] = ''; }
     if ($id === 'pcwout01') {
         $settings += ['add_min_width' => ['unit' => 'px', 'size' => 180], 'add_min_width_mobile' => ['unit' => 'px', 'size' => 140], 'step_padding' => ['unit' => 'px', 'top' => '5', 'right' => '8', 'bottom' => '5', 'left' => '8', 'isLinked' => false], 'counter_icon_size' => ['unit' => 'px', 'size' => 24], 'step_background' => '#112233', 'step_hover_background' => '#445566', 'step_hover_color' => '#ffffff', 'quantity_color' => '#123456', 'one_background' => '#ff0000', 'multiple_background' => '#00ff00'];
     }
@@ -38,6 +56,8 @@ $elements = [[
             ['id' => 'pcwmini1', 'elType' => 'widget', 'widgetType' => 'shortcode', 'settings' => ['shortcode' => '[pcw_test_mini_cart]'], 'elements' => []],
             ['id' => 'pcwstd01', 'elType' => 'widget', 'widgetType' => 'shortcode', 'settings' => ['shortcode' => '[pcw_test_standard_button product="' . $productId . '"]'], 'elements' => []],
             $widget('pcwout01', $outId),
+            $widget('pcwsilen', $silentId),
+            $widget('pcwinv01', 99999999),
         ],
     ]],
 ]];
@@ -45,5 +65,5 @@ update_post_meta($page, '_elementor_edit_mode', 'builder');
 update_post_meta($page, '_elementor_template_type', 'wp-page');
 update_post_meta($page, '_elementor_version', ELEMENTOR_VERSION);
 update_post_meta($page, '_elementor_data', wp_slash(wp_json_encode($elements)));
-file_put_contents('/tmp/pcw-fixture.json', wp_json_encode(['page' => $page, 'product' => $productId, 'out' => $outId]));
+file_put_contents('/tmp/pcw-fixture.json', wp_json_encode(['page' => $page, 'product' => $productId, 'out' => $outId, 'silent' => $silentId]));
 echo "Created disposable Elementor page $page and products $productId, $outId\n";

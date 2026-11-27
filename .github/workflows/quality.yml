@@ -20,15 +20,15 @@ jobs:
       - run: find . -name '*.php' -not -path './node_modules/*' -print0 | xargs -0 -n1 php -l
       - run: php widgets/ajax-smart-add-to-cart/tests/CartServiceTest.php
       - run: php tests/isolation.php
-      - run: php tests/design-system.php
       - run: php tests/idempotency.php
+      - run: php tests/mutation-guard.php
       - run: npm ci --ignore-scripts && npm test
       - name: Build and validate installable release ZIP
         if: matrix.php == '8.2'
         run: |
           scripts/package-release.sh "$GITHUB_SHA" /tmp/phehrest-custom-widgets-test.zip
           unzip -tq /tmp/phehrest-custom-widgets-test.zip
-          unzip -p /tmp/phehrest-custom-widgets-test.zip phehrest-custom-widgets/phehrest-custom-widgets.php | grep -F 'Version: 0.3.0'
+          unzip -p /tmp/phehrest-custom-widgets-test.zip phehrest-custom-widgets/phehrest-custom-widgets.php | grep -F 'Version: 0.4.0'
           ! unzip -Z1 /tmp/phehrest-custom-widgets-test.zip | grep -E '(^|/)(node_modules|tests|\.git|\.github)/'
   woocommerce-smoke:
     runs-on: ubuntu-latest
@@ -135,6 +135,8 @@ jobs:
           PHP_CLI_SERVER_WORKERS=4 wp server --host=127.0.0.1 --port=8080 --path=/tmp/pcw-wp > /tmp/pcw-server.log 2>&1 &
       - name: Exercise real Elementor pages and capture screenshots
         run: npm run test:e2e
+      - name: Verify obsolete design settings remain untouched
+        run: wp option get pcw_design_system --format=json --path=/tmp/pcw-wp | grep -F '#123456'
       - name: Verify AJAX endpoint is unavailable after deactivation
         run: |
           wp plugin deactivate phehrest-custom-widgets --path=/tmp/pcw-wp
