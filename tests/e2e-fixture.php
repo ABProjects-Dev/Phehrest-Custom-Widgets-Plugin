@@ -5,12 +5,12 @@ update_option('pcw_enabled_widgets', ['phehrest_ajax_smart_add_to_cart' => true]
 update_option('woocommerce_enable_ajax_add_to_cart', 'yes');
 // Verify the actual Elementor control registry, not just rendered CSS.
 try {
-$widgetControls = (new \Phehrest\CustomWidgets\Widgets\AjaxSmartAddToCart\Widget())->get_controls();
+$widgetInstance = new \Phehrest\CustomWidgets\Widgets\AjaxSmartAddToCart\Widget();
 foreach (['icon_add', 'icon_position', 'icon_size', 'gap', 'add_icon_color', 'hover_icon_color', 'animate', 'transition', 'one_background', 'one_border', 'one_padding', 'one_radius', 'multiple_background', 'multiple_border', 'multiple_padding', 'multiple_radius', 'shadow_box_shadow_type', 'counter_shadow_box_shadow_type'] as $removed) {
-    if (isset($widgetControls[$removed])) { throw new RuntimeException("Unexpected removed widget control: $removed"); }
+    if ($widgetInstance->get_controls($removed) !== null) { throw new RuntimeException("Unexpected removed widget control: $removed"); }
 }
 foreach (['counter_icon_size', 'step_padding', 'step_radius', 'step_border_width', 'step_background', 'step_hover_color', 'step_hover_background', 'step_hover_border_color', 'quantity_color', 'quantity_background', 'quantity_padding', 'quantity_radius', 'counter_typography_typography'] as $required) {
-    if (!isset($widgetControls[$required])) { throw new RuntimeException("Missing widget control: $required"); }
+    if ($widgetInstance->get_controls($required) === null) { throw new RuntimeException("Missing widget control: $required"); }
 }
 } catch (Throwable $error) {
     echo '::error title=Elementor controls::' . str_replace(["\r", "\n"], ' ', $error->getMessage()) . "\n";
