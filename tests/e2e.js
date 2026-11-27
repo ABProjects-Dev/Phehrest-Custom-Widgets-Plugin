@@ -26,6 +26,12 @@ fs.mkdirSync(output, { recursive: true });
             throw new Error(`Initial widget not ready: ${await widget.innerText()} | info ${JSON.stringify(info)} | events ${JSON.stringify(diagnostics)}`);
         }
         await out.locator('.pcw-cart__status').waitFor({ state: 'visible' });
+        // Elementor's saved responsive controls produce CSS, rather than only inline overrides.
+        assert.equal(await out.locator('.pcw-cart__add').evaluate(el => getComputedStyle(el).minWidth), '180px');
+        assert(await out.locator('.pcw-cart__add').evaluate(el => el.classList.contains('pcw-cart__add--icon-left')), 'saved physical icon position renders');
+        await page.setViewportSize({ width: 390, height: 844 });
+        assert.equal(await out.locator('.pcw-cart__add').evaluate(el => getComputedStyle(el).minWidth), '140px');
+        await page.setViewportSize({ width: 1440, height: 900 });
         // Exercise the layout independently of cart requests, with the actual Elementor markup/CSS.
         // The invisible add button remains the size anchor in both counter states.
         for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
@@ -85,6 +91,7 @@ fs.mkdirSync(output, { recursive: true });
         await out.scrollIntoViewIfNeeded();
         await page.screenshot({ path: `${output}/02-out-of-stock.png`, fullPage: true });
         await widget.scrollIntoViewIfNeeded();
+        const initialBox = await widget.locator('.pcw-cart__add').boundingBox();
         await page.route('**/wp-admin/admin-ajax.php', async route => {
             const body = route.request().postData() || '';
             if (body.includes('action=pcw_cart_change')) await new Promise(resolve => setTimeout(resolve, 1500));
@@ -97,9 +104,13 @@ fs.mkdirSync(output, { recursive: true });
         await page.waitForFunction(product => document.querySelector(`.pcw-cart[data-product-id="${product}"]`).getAttribute('aria-busy') === 'false', fixture.product);
         await page.locator('.widget_shopping_cart_content').getByText('محصول آزمایشی فهرست', { exact: false }).first().waitFor();
         assert.equal(await widget.locator('a.added_to_cart').count(), 0, 'widget does not display WooCommerce view-cart link');
+        const oneBox = await widget.locator('.pcw-cart__counter').boundingBox();
+        assert(Math.abs(initialBox.width - oneBox.width) < 0.1 && Math.abs(initialBox.height - oneBox.height) < 0.1, 'actual cart state one retains button size');
         await page.screenshot({ path: `${output}/04-one.png`, fullPage: true });
         await widget.locator('.pcw-cart__up').click();
         await page.waitForFunction(product => document.querySelector(`.pcw-cart[data-product-id="${product}"] .pcw-cart__quantity`)?.textContent === '2', fixture.product);
+        const twoBox = await widget.locator('.pcw-cart__counter').boundingBox();
+        assert(Math.abs(initialBox.width - twoBox.width) < 0.1 && Math.abs(initialBox.height - twoBox.height) < 0.1, 'actual cart state two retains button size');
         await page.screenshot({ path: `${output}/05-two.png`, fullPage: true });
         await page.setViewportSize({ width: 390, height: 844 });
         await page.screenshot({ path: `${output}/06-mobile.png`, fullPage: true });
