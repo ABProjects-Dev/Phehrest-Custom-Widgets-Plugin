@@ -1,0 +1,144 @@
+name: Quality checks
+on:
+  push:
+  pull_request:
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.0', '8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v6
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+      - run: find . -name '*.php' -not -path './node_modules/*' -print0 | xargs -0 -n1 php -l
+      - run: php widgets/ajax-smart-add-to-cart/tests/CartServiceTest.php
+      - run: php tests/isolation.php
+      - run: php tests/design-system.php
+      - run: php tests/idempotency.php
+      - run: npm ci --ignore-scripts && npm test
+  woocommerce-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: minimum
+            wordpress: '6.4'
+            elementor: '3.18.0'
+            woocommerce: '8.5.0'
+          - label: current
+            wordpress: 'latest'
+            elementor: 'latest'
+            woocommerce: 'latest'
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pcw_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, curl, mbstring, xml, zip
+      - name: Install WP-CLI from its official build repository
+        run: |
+          curl --retry 3 -fsSL https://github.com/wp-cli/builds/raw/gh-pages/phar/wp-cli.phar -o /tmp/wp
+          chmod +x /tmp/wp
+          echo /tmp >> "$GITHUB_PATH"
+      - name: Install disposable WordPress, WooCommerce and Elementor
+        run: |
+          trap 'echo "::error title=WordPress setup::Failed command: $BASH_COMMAND"' ERR
+          mkdir -p /tmp/pcw-wp
+          wp core download --version=${{ matrix.wordpress }} --path=/tmp/pcw-wp --quiet
+          wp config create --path=/tmp/pcw-wp --dbname=pcw_test --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --path=/tmp/pcw-wp --url=http://example.test --title=PCW-test --admin_user=admin --admin_password=test-only --admin_email=test@example.test --skip-email
+          if [ "${{ matrix.woocommerce }}" = latest ]; then wp plugin install woocommerce --activate --path=/tmp/pcw-wp; else wp plugin install woocommerce --version=${{ matrix.woocommerce }} --activate --path=/tmp/pcw-wp; fi
+          if [ "${{ matrix.elementor }}" = latest ]; then wp plugin install elementor --activate --path=/tmp/pcw-wp; else wp plugin install elementor --version=${{ matrix.elementor }} --activate --path=/tmp/pcw-wp; fi
+          find /tmp/pcw-wp/wp-admin /tmp/pcw-wp/wp-includes /tmp/pcw-wp/wp-content/plugins/woocommerce /tmp/pcw-wp/wp-content/plugins/elementor /tmp/pcw-wp/wp-content/themes -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/pcw-protected-before.sha256
+          ln -s "$GITHUB_WORKSPACE" /tmp/pcw-wp/wp-content/plugins/phehrest-custom-widgets
+          wp plugin activate phehrest-custom-widgets --path=/tmp/pcw-wp
+      - name: Exercise WooCommerce cart APIs on the disposable site
+        run: PCW_TEST_ENV=1 wp eval-file "$GITHUB_WORKSPACE/tests/integration.php" --path=/tmp/pcw-wp
+      - name: Test deactivation and uninstall isolation
+        run: |
+          PCW_TEST_ENV=1 PCW_TEST_PHASE=create wp eval-file "$GITHUB_WORKSPACE/tests/noninvasive.php" --path=/tmp/pcw-wp
+          wp plugin deactivate phehrest-custom-widgets --path=/tmp/pcw-wp
+          wp plugin uninstall phehrest-custom-widgets --skip-delete --path=/tmp/pcw-wp
+          PCW_TEST_ENV=1 PCW_TEST_PHASE=verify wp eval-file "$GITHUB_WORKSPACE/tests/noninvasive.php" --path=/tmp/pcw-wp
+          find /tmp/pcw-wp/wp-admin /tmp/pcw-wp/wp-includes /tmp/pcw-wp/wp-content/plugins/woocommerce /tmp/pcw-wp/wp-content/plugins/elementor /tmp/pcw-wp/wp-content/themes -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/pcw-protected-after.sha256
+          diff -u /tmp/pcw-protected-before.sha256 /tmp/pcw-protected-after.sha256
+
+  browser:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pcw_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, curl, mbstring, xml, zip
+      - name: Install WP-CLI from its official build repository
+        run: |
+          curl --retry 3 -fsSL https://github.com/wp-cli/builds/raw/gh-pages/phar/wp-cli.phar -o /tmp/wp
+          chmod +x /tmp/wp
+          echo /tmp >> "$GITHUB_PATH"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --ignore-scripts && npx playwright install --with-deps chromium
+      - name: Create disposable WordPress site
+        run: |
+          mkdir -p /tmp/pcw-wp
+          wp core download --path=/tmp/pcw-wp --quiet
+          wp config create --path=/tmp/pcw-wp --dbname=pcw_test --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --path=/tmp/pcw-wp --url=http://127.0.0.1:8080 --title=PCW-test --admin_user=admin --admin_password=test-only --admin_email=test@example.test --skip-email
+          wp option update home http://127.0.0.1:8080 --path=/tmp/pcw-wp
+          wp option update siteurl http://127.0.0.1:8080 --path=/tmp/pcw-wp
+          wp language core install fa_IR --activate --path=/tmp/pcw-wp
+          wp plugin install woocommerce elementor --activate --path=/tmp/pcw-wp
+          mkdir -p /tmp/pcw-wp/wp-content/plugins/phehrest-custom-widgets
+          tar --exclude=.git --exclude=node_modules --exclude=test-results -cf - -C "$GITHUB_WORKSPACE" . | tar -xf - -C /tmp/pcw-wp/wp-content/plugins/phehrest-custom-widgets
+          wp plugin activate phehrest-custom-widgets --path=/tmp/pcw-wp
+          mkdir -p /tmp/pcw-wp/wp-content/mu-plugins
+          cp tests/e2e-mu-plugin.php /tmp/pcw-wp/wp-content/mu-plugins/pcw-fixture.php
+          PCW_TEST_ENV=1 wp eval-file "$GITHUB_WORKSPACE/tests/e2e-fixture.php" --path=/tmp/pcw-wp
+          PHP_CLI_SERVER_WORKERS=4 wp server --host=127.0.0.1 --port=8080 --path=/tmp/pcw-wp > /tmp/pcw-server.log 2>&1 &
+      - name: Exercise real Elementor pages and capture screenshots
+        run: npm run test:e2e
+      - name: Verify AJAX endpoint is unavailable after deactivation
+        run: |
+          wp plugin deactivate phehrest-custom-widgets --path=/tmp/pcw-wp
+          status=$(curl -sS -o /tmp/pcw-disabled-response -w '%{http_code}' -X POST -d 'action=pcw_cart_change' http://127.0.0.1:8080/wp-admin/admin-ajax.php)
+          test "$status" = 400
+          test "$(cat /tmp/pcw-disabled-response)" = 0
+      - name: Upload real screenshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: pcw-real-browser-screenshots
+          path: test-results/screenshots/
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,0 +1,11 @@
+# AJAX Smart Add to Cart
+
+Experimental Elementor widget for one WooCommerce cart line. Zero shows add; one shows remove, quantity and plus; higher quantities show minus, quantity and plus. WooCommerce remains the source of truth for the cart, prices and totals.
+
+Enable the widget in the plugin dashboard, add it to Elementor and choose the current product or an explicit product, by ID or editor search. Variable products require exactly one matching standard WooCommerce variation form on the page with all attributes selected. External/grouped products, ambiguous matching cart lines, fractional quantities and non-unit steps are not supported.
+
+State is fetched without caching; mutations require a WP nonce, a session-bound token and a random operation ID. The server validates product identity, cart key, quantities and WooCommerce validation filters. A bounded plugin-owned ledger records hashed operation identities and minimal results for 15 minutes. A MySQL advisory lock serializes this plugin's requests for the same session before WooCommerce loads its cart; it does not modify core tables or schema. An incomplete operation ID fails closed: inspect the cart before trying again.
+
+**Limits:** the standard WooCommerce session handler and MySQL advisory locks are required; unsupported session handlers or unavailable locks cause widget mutations to fail closed. Other plugins do not participate in this lock. Independent database nodes, arbitrary third-party concurrent cart mutations and all infrastructure failures cannot be guaranteed. The default WooCommerce fragment events are used where available; theme-specific headers and mini carts may require additional integration. Do not publicly cache AJAX responses.
+
+The CI runs isolated tests, disposable-site WooCommerce/non-invasive tests, and real Chromium Elementor tests with screenshot artifacts. See the root README for the exact matrix. Elementor Pro, custom themes, custom product extensions, exhaustive accessibility and multi-node environments remain untested; this is not a production-stability claim.
