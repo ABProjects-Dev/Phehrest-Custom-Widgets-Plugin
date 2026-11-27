@@ -114,9 +114,12 @@ jobs:
           wp core download --path=/tmp/pcw-wp --quiet
           wp config create --path=/tmp/pcw-wp --dbname=pcw_test --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
           wp core install --path=/tmp/pcw-wp --url=http://127.0.0.1:8080 --title=PCW-test --admin_user=admin --admin_password=test-only --admin_email=test@example.test --skip-email
+          wp option update home http://127.0.0.1:8080 --path=/tmp/pcw-wp
+          wp option update siteurl http://127.0.0.1:8080 --path=/tmp/pcw-wp
           wp language core install fa_IR --activate --path=/tmp/pcw-wp
           wp plugin install woocommerce elementor --activate --path=/tmp/pcw-wp
-          ln -s "$GITHUB_WORKSPACE" /tmp/pcw-wp/wp-content/plugins/phehrest-custom-widgets
+          mkdir -p /tmp/pcw-wp/wp-content/plugins/phehrest-custom-widgets
+          tar --exclude=.git --exclude=node_modules --exclude=test-results -cf - -C "$GITHUB_WORKSPACE" . | tar -xf - -C /tmp/pcw-wp/wp-content/plugins/phehrest-custom-widgets
           wp plugin activate phehrest-custom-widgets --path=/tmp/pcw-wp
           mkdir -p /tmp/pcw-wp/wp-content/mu-plugins
           cp tests/e2e-mu-plugin.php /tmp/pcw-wp/wp-content/mu-plugins/pcw-fixture.php
