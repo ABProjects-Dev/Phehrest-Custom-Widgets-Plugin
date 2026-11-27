@@ -130,8 +130,9 @@ jobs:
       - name: Verify AJAX endpoint is unavailable after deactivation
         run: |
           wp plugin deactivate phehrest-custom-widgets --path=/tmp/pcw-wp
-          result=$(curl -fsS -X POST -d 'action=pcw_cart_change' http://127.0.0.1:8080/wp-admin/admin-ajax.php || true)
-          test "$result" = 0
+          status=$(curl -sS -o /tmp/pcw-disabled-response -w '%{http_code}' -X POST -d 'action=pcw_cart_change' http://127.0.0.1:8080/wp-admin/admin-ajax.php)
+          test "$status" = 400
+          test "$(cat /tmp/pcw-disabled-response)" = 0
       - name: Upload real screenshots
         if: always()
         uses: actions/upload-artifact@v6
