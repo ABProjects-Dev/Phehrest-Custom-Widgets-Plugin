@@ -2,10 +2,6 @@
 
 ## Unreleased
 
-## 0.5.0 — 2026-11-27
-
-- Add an experimental current-cart product query source for compatible Elementor Pro Posts and Loop widgets. Review cache and compatibility warnings in the guides.
-
 ## 0.4.0 — 2026-11-27
 
 - Add per-widget error visibility, remove the shared design feature, and show collapsible widget cards in a dashboard carousel. Legacy shared-design values remain stored but no longer apply.

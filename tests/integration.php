@@ -65,21 +65,6 @@ try {
     pcw_assert($state['quantity'] === 1 && WC()->cart->get_cart_contents_count() === 1, 'valid variation added');
     $cartItem = WC()->cart->get_cart_item($state['key']);
     pcw_assert((int) $cartItem['variation_id'] === $variationId && $cartItem['variation']['attribute_color'] === 'red', 'variation identity retained');
-    // Exercise our registered filter and a real WP_Query; the Pro widget is represented by a stub.
-    $queryWidget = new class {
-        public function get_name() { return 'loop-grid'; }
-        public function get_settings($id) { return $id === 'post_query_post_type' ? 'pcw_cart_products' : null; }
-    };
-    $queryArgs = apply_filters('elementor/query/query_args', ['posts_per_page' => 10, 'fields' => 'ids'], $queryWidget);
-    $cartQuery = new WP_Query($queryArgs);
-    pcw_assert($cartQuery->posts === [$variableId], 'cart query returns published variation parent via real WP_Query');
-    $variable->set_status('draft'); $variable->save();
-    pcw_assert((new WP_Query($queryArgs))->posts === [], 'cart query excludes unpublished products');
-    $variable->set_status('publish'); $variable->save();
-    $excludedArgs = apply_filters('elementor/query/query_args', ['post__not_in' => [$variableId], 'fields' => 'ids'], $queryWidget);
-    pcw_assert((new WP_Query($excludedArgs))->posts === [], 'cart query respects excluded product');
     $service->change($variableId, $variationId, ['attribute_color' => 'red'], 'remove', $state['key'], 1);
     pcw_assert(WC()->cart->is_empty(), 'variation removed');
-    $emptyArgs = apply_filters('elementor/query/query_args', ['fields' => 'ids'], $queryWidget);
-    pcw_assert((new WP_Query($emptyArgs))->posts === [], 'empty cart query never returns other products');
 } finally { WC()->cart->empty_cart(); wp_delete_post($variationId, true); wp_delete_post($variableId, true); }
